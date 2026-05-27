@@ -63,6 +63,19 @@ def test_install_script_uses_user_launchagent_not_system_daemon():
     assert "sudo " not in script
 
 
+def test_install_script_verifies_launchagent_after_kickstart():
+    script = read_script(INSTALL_SCRIPT)
+
+    kickstart = "launchctl kickstart -k gui/$UID/com.local.translate-service"
+    verification = 'launchctl print "gui/$UID/$LABEL" >/dev/null'
+
+    assert verification in script
+    assert "Failed to verify LaunchAgent" in script
+    assert "launchctl print gui/$UID/$LABEL" in script
+    assert "logs in $LOG_DIR" in script
+    assert script.index(kickstart) < script.index(verification)
+
+
 def test_install_script_checks_ollama_http_api_before_model_pull():
     script = read_script(INSTALL_SCRIPT)
 

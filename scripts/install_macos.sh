@@ -236,6 +236,7 @@ PY
   launchctl bootout gui/$UID "$PLIST_PATH" >/dev/null 2>&1 || true
   launchctl bootstrap gui/$UID "$PLIST_PATH" || die "Failed to bootstrap LaunchAgent. Check $PLIST_PATH and logs in $LOG_DIR."
   launchctl kickstart -k gui/$UID/com.local.translate-service || die "Failed to start LaunchAgent. Run: launchctl print gui/$UID/$LABEL"
+  launchctl print "gui/$UID/$LABEL" >/dev/null || die "Failed to verify LaunchAgent. Run: launchctl print gui/$UID/$LABEL and check logs in $LOG_DIR."
   sleep 2
   if command -v curl >/dev/null 2>&1; then
     curl -fsS "http://$HOST:$PORT/health" || log "Health check did not return ok. Check logs in $LOG_DIR."
