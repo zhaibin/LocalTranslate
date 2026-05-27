@@ -84,6 +84,9 @@ validate_port() {
       die "--port must be numeric."
       ;;
   esac
+  if ((port < 1 || port > 65535)); then
+    die "--port must be between 1 and 65535."
+  fi
 }
 
 wait_for_ollama() {
@@ -145,7 +148,14 @@ if ! command -v ollama >/dev/null 2>&1; then
   fi
 fi
 if command -v curl >/dev/null 2>&1; then
-  wait_for_ollama || die "Ollama HTTP API is not reachable at $OLLAMA_BASE_URL. Installed Ollama is not ready. Please start Ollama first, or run 'ollama serve', and rerun the installer."
+  if ! wait_for_ollama; then
+    if [ "$INSTALL_OLLAMA" -eq 1 ] && [ "$OLLAMA_BASE_URL" = "$DEFAULT_OLLAMA_BASE_URL" ]; then
+      start_local_ollama
+      wait_for_ollama || die "Ollama HTTP API is not reachable at $OLLAMA_BASE_URL. Installed Ollama is not ready. Please start Ollama first, or run 'ollama serve', and rerun the installer."
+    else
+      die "Ollama HTTP API is not reachable at $OLLAMA_BASE_URL. Installed Ollama is not ready. Please start Ollama first, or run 'ollama serve', and rerun the installer."
+    fi
+  fi
 else
   log "curl is not available; skipping Ollama HTTP API readiness check."
 fi

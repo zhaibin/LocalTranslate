@@ -100,6 +100,22 @@ def test_install_script_polls_readiness_and_starts_fresh_local_ollama():
     assert "Installed Ollama is not ready" in script
 
 
+def test_install_ollama_starts_existing_local_ollama_after_readiness_failure():
+    script = read_script(INSTALL_SCRIPT)
+
+    readiness_failure_branch = 'if ! wait_for_ollama; then'
+    install_ollama_guard = '[ "$INSTALL_OLLAMA" -eq 1 ]'
+    local_url_guard = '[ "$OLLAMA_BASE_URL" = "$DEFAULT_OLLAMA_BASE_URL" ]'
+    start_attempt = "start_local_ollama"
+    final_failure = "Ollama HTTP API is not reachable"
+
+    assert readiness_failure_branch in script
+    assert install_ollama_guard in script
+    assert local_url_guard in script
+    assert script.index(readiness_failure_branch) < script.rindex(start_attempt)
+    assert script.rindex(start_attempt) < script.index(final_failure)
+
+
 def test_install_script_validates_port_is_numeric_before_launchagent():
     script = read_script(INSTALL_SCRIPT)
 
@@ -111,6 +127,13 @@ def test_install_script_validates_port_is_numeric_before_launchagent():
     assert '*[!0-9]*' in script
     assert validation in script
     assert script.index(validation) < script.index(plist_generation)
+
+
+def test_install_script_validates_port_range():
+    script = read_script(INSTALL_SCRIPT)
+
+    assert "port < 1 || port > 65535" in script
+    assert "--port must be between 1 and 65535." in script
 
 
 def test_install_script_generates_plist_with_plistlib_not_xml_heredoc():
