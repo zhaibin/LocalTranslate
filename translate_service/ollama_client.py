@@ -33,7 +33,14 @@ class OllamaClient:
         if response.status_code >= 400:
             raise OllamaModelError(_error_summary(response))
 
-        data = response.json()
+        try:
+            data = response.json()
+        except ValueError as exc:
+            raise OllamaModelError("Ollama returned an invalid response") from exc
+
+        if not isinstance(data, dict):
+            raise OllamaModelError("Ollama returned an invalid response")
+
         try:
             return str(data["response"])
         except KeyError as exc:
@@ -53,7 +60,21 @@ class OllamaClient:
         if response.status_code >= 400:
             return {"ok": False, "status": "degraded", "reason": f"http_{response.status_code}"}
 
-        models = response.json().get("models", [])
+        try:
+            data = response.json()
+        except ValueError:
+            return _invalid_health_response(self.settings)
+
+        if not isinstance(data, dict):
+            return _invalid_health_response(self.settings)
+
+        models = data.get("models", [])
+        if not isinstance(models, list):
+            return _invalid_health_response(self.settings)
+
+        if not all(isinstance(model, dict) for model in models):
+            return _invalid_health_response(self.settings)
+
         model_names = {model.get("name") for model in models}
         model_available = self.settings.ollama_model in model_names
         return {
@@ -73,3 +94,12 @@ def _error_summary(response: httpx.Response) -> str:
     if error:
         return str(error)
     return f"Ollama returned HTTP {response.status_code}"
+
+
+def _invalid_health_response(settings: Settings) -> dict[str, object]:
+    return {
+        "ok": False,
+        "status": "degraded",
+        "reason": "invalid_response",
+        "model": settings.ollama_model,
+    }
