@@ -74,6 +74,32 @@ def test_install_script_checks_ollama_http_api_before_model_pull():
     assert script.index(readiness_check) < script.index(model_pull)
 
 
+def test_install_script_polls_readiness_and_starts_fresh_local_ollama():
+    script = read_script(INSTALL_SCRIPT)
+
+    assert "wait_for_ollama()" in script
+    assert "OLLAMA_READY_TIMEOUT_SECONDS=30" in script
+    assert 'while [ "$elapsed" -lt "$OLLAMA_READY_TIMEOUT_SECONDS" ]' in script
+    assert "brew services start ollama" in script
+    assert "ollama serve" in script
+    assert "ollama.log" in script
+    assert '[ "$OLLAMA_BASE_URL" = "$DEFAULT_OLLAMA_BASE_URL" ]' in script
+    assert "Installed Ollama is not ready" in script
+
+
+def test_install_script_validates_port_is_numeric_before_launchagent():
+    script = read_script(INSTALL_SCRIPT)
+
+    validation = 'validate_port "$PORT"'
+    plist_generation = '"$VENV_DIR/bin/python" - "$PLIST_PATH"'
+
+    assert "validate_port()" in script
+    assert 'case "$port" in' in script
+    assert '*[!0-9]*' in script
+    assert validation in script
+    assert script.index(validation) < script.index(plist_generation)
+
+
 def test_install_script_generates_plist_with_plistlib_not_xml_heredoc():
     script = read_script(INSTALL_SCRIPT)
 

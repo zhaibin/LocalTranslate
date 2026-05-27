@@ -2,6 +2,7 @@
 set -euo pipefail
 
 LABEL="com.local.translate-service"
+DEFAULT_OLLAMA_BASE_URL="http://127.0.0.1:11434"
 INSTALL_SERVICE=0
 INSTALL_OLLAMA=0
 PULL_MODEL=1
@@ -10,8 +11,9 @@ PORT="8000"
 MODEL="translategemma:latest"
 SOURCE_LANG="en"
 TARGET_LANG="zh"
-OLLAMA_BASE_URL="http://127.0.0.1:11434"
+OLLAMA_BASE_URL="$DEFAULT_OLLAMA_BASE_URL"
 REQUEST_TIMEOUT_SECONDS="120"
+OLLAMA_READY_TIMEOUT_SECONDS=30
 
 usage() {
   cat <<'EOF'
@@ -75,6 +77,42 @@ validate_no_newline() {
   esac
 }
 
+validate_port() {
+  port="$1"
+  case "$port" in
+    ""|*[!0-9]*)
+      die "--port must be numeric."
+      ;;
+  esac
+}
+
+wait_for_ollama() {
+  command -v curl >/dev/null 2>&1 || return 2
+
+  elapsed=0
+  while [ "$elapsed" -lt "$OLLAMA_READY_TIMEOUT_SECONDS" ]; do
+    if curl -fsS "$OLLAMA_BASE_URL/api/tags" >/dev/null; then
+      return 0
+    fi
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+  return 1
+}
+
+start_local_ollama() {
+  log "Starting local Ollama"
+  mkdir -p "$LOG_DIR"
+  if command -v brew >/dev/null 2>&1 && brew services list >/dev/null 2>&1; then
+    brew services start ollama || log "brew services could not start Ollama; trying ollama serve."
+    if wait_for_ollama; then
+      return 0
+    fi
+  fi
+
+  ollama serve > "$LOG_DIR/ollama.log" 2>&1 &
+}
+
 log "[1/7] Checking macOS and Python"
 [ "$(uname -s)" = "Darwin" ] || die "This installer only supports macOS."
 [ -f "$PROJECT_ROOT/pyproject.toml" ] || die "Run this script from a valid project checkout."
@@ -99,12 +137,15 @@ if ! command -v ollama >/dev/null 2>&1; then
   if [ "$INSTALL_OLLAMA" -eq 1 ]; then
     command -v brew >/dev/null 2>&1 || die "Homebrew is required for --install-ollama. Install Homebrew or Ollama manually."
     brew install ollama
+    if [ "$OLLAMA_BASE_URL" = "$DEFAULT_OLLAMA_BASE_URL" ]; then
+      start_local_ollama
+    fi
   else
     die "Ollama is not installed. Install it manually or rerun with --install-ollama."
   fi
 fi
 if command -v curl >/dev/null 2>&1; then
-  curl -fsS "$OLLAMA_BASE_URL/api/tags" >/dev/null || die "Ollama HTTP API is not reachable at $OLLAMA_BASE_URL. Please start Ollama first, or run 'ollama serve', and rerun the installer."
+  wait_for_ollama || die "Ollama HTTP API is not reachable at $OLLAMA_BASE_URL. Installed Ollama is not ready. Please start Ollama first, or run 'ollama serve', and rerun the installer."
 else
   log "curl is not available; skipping Ollama HTTP API readiness check."
 fi
@@ -145,6 +186,7 @@ fi
 if [ "$INSTALL_SERVICE" -eq 1 ]; then
   log "[7/7] Installing LaunchAgent service"
   mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
+  validate_port "$PORT"
   "$VENV_DIR/bin/python" - "$PLIST_PATH" "$LABEL" "$VENV_DIR/bin/translate" "$HOST" "$PORT" "$PROJECT_ROOT" "$OLLAMA_BASE_URL" "$MODEL" "$SOURCE_LANG" "$TARGET_LANG" "$LOG_DIR" <<'PY'
 import plistlib
 import sys
