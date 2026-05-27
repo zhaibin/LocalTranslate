@@ -64,3 +64,39 @@ async def test_translate_rejects_unsupported_language_before_ollama_call():
         await service.translate(text="Hello", source_lang="EN", target_lang="zh")
 
     assert client.prompts == []
+
+
+@pytest.mark.asyncio
+async def test_translate_rejects_empty_source_language_before_ollama_call():
+    client = FakeOllamaClient()
+    service = TranslationService(Settings(), client)
+
+    with pytest.raises(UnsupportedLanguageError):
+        await service.translate(text="Hello", source_lang="", target_lang="zh")
+
+    assert client.prompts == []
+
+
+@pytest.mark.asyncio
+async def test_translate_rejects_empty_target_language_before_ollama_call():
+    client = FakeOllamaClient()
+    service = TranslationService(Settings(), client)
+
+    with pytest.raises(UnsupportedLanguageError):
+        await service.translate(text="Hello", source_lang="en", target_lang="")
+
+    assert client.prompts == []
+
+
+@pytest.mark.asyncio
+async def test_health_returns_normalized_shape():
+    client = FakeOllamaClient()
+    service = TranslationService(Settings(), client)
+
+    result = await service.health()
+
+    assert result == {
+        "status": "ok",
+        "model": "translategemma:latest",
+        "ollama": {"ok": True, "status": "ok", "model": "translategemma:latest"},
+    }

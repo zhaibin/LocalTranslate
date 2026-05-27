@@ -27,8 +27,10 @@ class TranslationService:
         if not text.strip():
             raise EmptyTextError("Text to translate cannot be empty")
 
-        source = get_language(source_lang or self.settings.default_source_lang)
-        target = get_language(target_lang or self.settings.default_target_lang)
+        source_code = self.settings.default_source_lang if source_lang is None else source_lang
+        target_code = self.settings.default_target_lang if target_lang is None else target_lang
+        source = get_language(source_code)
+        target = get_language(target_code)
         prompt = build_prompt(
             source_name=source["name"],
             source_code=source["code"],
