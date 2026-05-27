@@ -213,12 +213,73 @@ def test_install_script_validates_env_values_before_writing_dotenv():
 
     assert "validate_dotenv_token()" in script
     assert "validate_lang_code()" in script
-    assert "whitespace, #, or quotes" in script
+    assert "whitespace, #, quotes, $, {, or }" in script
     assert "[!A-Za-z0-9-]" in script
     assert 'validate_dotenv_token "OLLAMA_BASE_URL" "$OLLAMA_BASE_URL"' in script
     assert 'validate_dotenv_token "OLLAMA_MODEL" "$MODEL"' in script
     assert 'validate_lang_code "DEFAULT_SOURCE_LANG" "$SOURCE_LANG"' in script
     assert 'validate_lang_code "DEFAULT_TARGET_LANG" "$TARGET_LANG"' in script
+
+
+def test_install_script_env_validators_reject_dotenv_expansion_values():
+    script = read_script(INSTALL_SCRIPT)
+    validators = "\n".join(
+        [
+            extract_function(script, "validate_no_newline"),
+            extract_function(script, "validate_dotenv_token"),
+            extract_function(script, "validate_lang_code"),
+        ]
+    )
+    harness = f"""
+set -euo pipefail
+die() {{ exit 42; }}
+{validators}
+
+expect_token_ok() {{
+  validate_dotenv_token TEST "$1"
+}}
+
+expect_token_fail() {{
+  if ( validate_dotenv_token TEST "$1" ); then
+    exit 99
+  fi
+}}
+
+expect_lang_ok() {{
+  validate_lang_code TEST "$1"
+}}
+
+expect_lang_fail() {{
+  if ( validate_lang_code TEST "$1" ); then
+    exit 98
+  fi
+}}
+
+expect_token_ok "http://127.0.0.1:11434"
+expect_token_ok "translategemma:latest"
+expect_token_ok "registry.example/model-name:1.0"
+expect_token_fail "bad value"
+expect_token_fail "bad#value"
+expect_token_fail "bad'value"
+expect_token_fail 'bad"value'
+expect_token_fail '${{HOME}}'
+
+expect_lang_ok "en"
+expect_lang_ok "zh-Hans"
+expect_lang_fail "en_US"
+expect_lang_fail "en US"
+expect_lang_fail "en#US"
+expect_lang_fail '${{HOME}}'
+"""
+
+    result = subprocess.run(
+        ["bash", "-c", harness],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_install_script_has_valid_bash_syntax():

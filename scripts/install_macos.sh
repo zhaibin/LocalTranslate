@@ -82,8 +82,8 @@ validate_dotenv_token() {
   value="$2"
   validate_no_newline "$name" "$value"
   case "$value" in
-    ""|*[[:space:]]*|*"#"*|*"'"*|*'"'*)
-      die "$name must not be empty or contain whitespace, #, or quotes."
+    ""|*[[:space:]]*|*"#"*|*"'"*|*'"'*|*'$'*|*"{"*|*"}"*)
+      die "$name must not be empty or contain whitespace, #, quotes, $, {, or }."
       ;;
   esac
 }
