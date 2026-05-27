@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 
 
@@ -60,3 +61,53 @@ def test_install_script_uses_user_launchagent_not_system_daemon():
     assert "launchctl kickstart -k gui/$UID/com.local.translate-service" in script
     assert "/Library/LaunchDaemons" not in script
     assert "sudo " not in script
+
+
+def test_install_script_checks_ollama_http_api_before_model_pull():
+    script = read_script(INSTALL_SCRIPT)
+
+    readiness_check = 'curl -fsS "$OLLAMA_BASE_URL/api/tags"'
+    model_pull = 'ollama pull "$MODEL"'
+
+    assert readiness_check in script
+    assert "start Ollama first" in script
+    assert script.index(readiness_check) < script.index(model_pull)
+
+
+def test_install_script_generates_plist_with_plistlib_not_xml_heredoc():
+    script = read_script(INSTALL_SCRIPT)
+
+    assert "import plistlib" in script
+    assert "plistlib.dump" in script
+    assert "Label" in script
+    assert "ProgramArguments" in script
+    assert "WorkingDirectory" in script
+    assert "EnvironmentVariables" in script
+    assert "RunAtLoad" in script
+    assert "KeepAlive" in script
+    assert "StandardOutPath" in script
+    assert "StandardErrorPath" in script
+    assert "<plist version=" not in script
+    assert "<!DOCTYPE plist" not in script
+
+
+def test_install_script_backs_up_env_and_rejects_newlines():
+    script = read_script(INSTALL_SCRIPT)
+
+    assert 'ENV_PATH="$PROJECT_ROOT/.env"' in script
+    assert "ENV_BACKUP_PATH=" in script
+    assert "date +%Y%m%d%H%M%S" in script
+    assert 'cp "$ENV_PATH" "$ENV_BACKUP_PATH"' in script
+    assert "Backed up existing .env to" in script
+    assert "literal newlines" in script
+
+
+def test_install_script_has_valid_bash_syntax():
+    result = subprocess.run(
+        ["bash", "-n", str(INSTALL_SCRIPT)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr

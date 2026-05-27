@@ -61,8 +61,19 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 VENV_DIR="$PROJECT_ROOT/.venv"
+ENV_PATH="$PROJECT_ROOT/.env"
 PLIST_PATH="$HOME/Library/LaunchAgents/com.local.translate-service.plist"
 LOG_DIR="$HOME/Library/Logs/translate-service"
+
+validate_no_newline() {
+  name="$1"
+  value="$2"
+  case "$value" in
+    *$'\n'*|*$'\r'*)
+      die "$name must not contain literal newlines."
+      ;;
+  esac
+}
 
 log "[1/7] Checking macOS and Python"
 [ "$(uname -s)" = "Darwin" ] || die "This installer only supports macOS."
@@ -92,6 +103,11 @@ if ! command -v ollama >/dev/null 2>&1; then
     die "Ollama is not installed. Install it manually or rerun with --install-ollama."
   fi
 fi
+if command -v curl >/dev/null 2>&1; then
+  curl -fsS "$OLLAMA_BASE_URL/api/tags" >/dev/null || die "Ollama HTTP API is not reachable at $OLLAMA_BASE_URL. Please start Ollama first, or run 'ollama serve', and rerun the installer."
+else
+  log "curl is not available; skipping Ollama HTTP API readiness check."
+fi
 
 log "[3/7] Creating virtual environment"
 "$PYTHON_BIN" -m venv "$VENV_DIR"
@@ -101,7 +117,17 @@ log "[4/7] Installing translate-service"
 "$VENV_DIR/bin/python" -m pip install -e "$PROJECT_ROOT"
 
 log "[5/7] Writing configuration"
-cat > "$PROJECT_ROOT/.env" <<EOF
+validate_no_newline "OLLAMA_BASE_URL" "$OLLAMA_BASE_URL"
+validate_no_newline "OLLAMA_MODEL" "$MODEL"
+validate_no_newline "DEFAULT_SOURCE_LANG" "$SOURCE_LANG"
+validate_no_newline "DEFAULT_TARGET_LANG" "$TARGET_LANG"
+validate_no_newline "REQUEST_TIMEOUT_SECONDS" "$REQUEST_TIMEOUT_SECONDS"
+if [ -f "$ENV_PATH" ]; then
+  ENV_BACKUP_PATH="$PROJECT_ROOT/.env.backup.$(date +%Y%m%d%H%M%S)"
+  cp "$ENV_PATH" "$ENV_BACKUP_PATH"
+  log "Backed up existing .env to $ENV_BACKUP_PATH"
+fi
+cat > "$ENV_PATH" <<EOF
 OLLAMA_BASE_URL=$OLLAMA_BASE_URL
 OLLAMA_MODEL=$MODEL
 DEFAULT_SOURCE_LANG=$SOURCE_LANG
@@ -119,46 +145,51 @@ fi
 if [ "$INSTALL_SERVICE" -eq 1 ]; then
   log "[7/7] Installing LaunchAgent service"
   mkdir -p "$HOME/Library/LaunchAgents" "$LOG_DIR"
-  cat > "$PLIST_PATH" <<EOF
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>$LABEL</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>$VENV_DIR/bin/translate</string>
-    <string>serve</string>
-    <string>--host</string>
-    <string>$HOST</string>
-    <string>--port</string>
-    <string>$PORT</string>
-  </array>
-  <key>WorkingDirectory</key>
-  <string>$PROJECT_ROOT</string>
-  <key>EnvironmentVariables</key>
-  <dict>
-    <key>OLLAMA_BASE_URL</key>
-    <string>$OLLAMA_BASE_URL</string>
-    <key>OLLAMA_MODEL</key>
-    <string>$MODEL</string>
-    <key>DEFAULT_SOURCE_LANG</key>
-    <string>$SOURCE_LANG</string>
-    <key>DEFAULT_TARGET_LANG</key>
-    <string>$TARGET_LANG</string>
-  </dict>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <true/>
-  <key>StandardOutPath</key>
-  <string>$LOG_DIR/stdout.log</string>
-  <key>StandardErrorPath</key>
-  <string>$LOG_DIR/stderr.log</string>
-</dict>
-</plist>
-EOF
+  "$VENV_DIR/bin/python" - "$PLIST_PATH" "$LABEL" "$VENV_DIR/bin/translate" "$HOST" "$PORT" "$PROJECT_ROOT" "$OLLAMA_BASE_URL" "$MODEL" "$SOURCE_LANG" "$TARGET_LANG" "$LOG_DIR" <<'PY'
+import plistlib
+import sys
+from pathlib import Path
+
+(
+    plist_path,
+    label,
+    translate_bin,
+    host,
+    port,
+    project_root,
+    ollama_base_url,
+    model,
+    source_lang,
+    target_lang,
+    log_dir,
+) = sys.argv[1:]
+
+plist = {
+    "Label": label,
+    "ProgramArguments": [
+        translate_bin,
+        "serve",
+        "--host",
+        host,
+        "--port",
+        port,
+    ],
+    "WorkingDirectory": project_root,
+    "EnvironmentVariables": {
+        "OLLAMA_BASE_URL": ollama_base_url,
+        "OLLAMA_MODEL": model,
+        "DEFAULT_SOURCE_LANG": source_lang,
+        "DEFAULT_TARGET_LANG": target_lang,
+    },
+    "RunAtLoad": True,
+    "KeepAlive": True,
+    "StandardOutPath": f"{log_dir}/stdout.log",
+    "StandardErrorPath": f"{log_dir}/stderr.log",
+}
+
+with Path(plist_path).open("wb") as plist_file:
+    plistlib.dump(plist, plist_file)
+PY
   plutil -lint "$PLIST_PATH"
   launchctl bootout gui/$UID "$PLIST_PATH" >/dev/null 2>&1 || true
   launchctl bootstrap gui/$UID "$PLIST_PATH" || die "Failed to bootstrap LaunchAgent. Check $PLIST_PATH and logs in $LOG_DIR."
