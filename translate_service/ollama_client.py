@@ -90,6 +90,8 @@ def _error_summary(response: httpx.Response) -> str:
         data = response.json()
     except ValueError:
         return f"Ollama returned HTTP {response.status_code}"
+    if not isinstance(data, dict):
+        return f"Ollama returned HTTP {response.status_code}"
     error = data.get("error")
     if error:
         return str(error)

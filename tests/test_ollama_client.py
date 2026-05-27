@@ -45,6 +45,20 @@ async def test_generate_maps_non_200_to_model_error():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_generate_maps_non_200_non_object_json_to_model_error():
+    respx.post("http://127.0.0.1:11434/api/generate").mock(
+        return_value=httpx.Response(500, json=["bad"])
+    )
+    client = OllamaClient(Settings())
+
+    with pytest.raises(OllamaModelError) as exc_info:
+        await client.generate("prompt")
+
+    assert str(exc_info.value) == "Ollama returned HTTP 500"
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_generate_maps_timeout():
     respx.post("http://127.0.0.1:11434/api/generate").mock(
         side_effect=httpx.TimeoutException("timeout")
