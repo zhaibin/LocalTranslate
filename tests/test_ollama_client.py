@@ -61,3 +61,15 @@ async def test_generate_maps_connect_error():
 
     with pytest.raises(OllamaUnavailableError):
         await client.generate("prompt")
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_generate_maps_http_error():
+    respx.post("http://127.0.0.1:11434/api/generate").mock(
+        side_effect=httpx.HTTPError("broken")
+    )
+    client = OllamaClient(Settings())
+
+    with pytest.raises(OllamaUnavailableError):
+        await client.generate("prompt")
