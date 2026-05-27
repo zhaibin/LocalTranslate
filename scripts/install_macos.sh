@@ -77,14 +77,40 @@ validate_no_newline() {
   esac
 }
 
+validate_dotenv_token() {
+  name="$1"
+  value="$2"
+  validate_no_newline "$name" "$value"
+  case "$value" in
+    ""|*[[:space:]]*|*"#"*|*"'"*|*'"'*)
+      die "$name must not be empty or contain whitespace, #, or quotes."
+      ;;
+  esac
+}
+
+validate_lang_code() {
+  name="$1"
+  value="$2"
+  validate_no_newline "$name" "$value"
+  case "$value" in
+    ""|*[!A-Za-z0-9-]*)
+      die "$name must contain only BCP47 language-code characters: A-Z, a-z, 0-9, or '-'."
+      ;;
+  esac
+}
+
 validate_port() {
   port="$1"
   case "$port" in
     ""|*[!0-9]*)
       die "--port must be numeric."
       ;;
+    0|0*)
+      die "--port must be between 1 and 65535."
+      ;;
   esac
-  if ((port < 1 || port > 65535)); then
+  port_num=$((10#$port))
+  if ((port_num < 1 || port_num > 65535)); then
     die "--port must be between 1 and 65535."
   fi
 }
@@ -94,7 +120,7 @@ wait_for_ollama() {
 
   elapsed=0
   while [ "$elapsed" -lt "$OLLAMA_READY_TIMEOUT_SECONDS" ]; do
-    if curl -fsS "$OLLAMA_BASE_URL/api/tags" >/dev/null; then
+    if curl -fsS --connect-timeout 2 --max-time 5 "$OLLAMA_BASE_URL/api/tags" >/dev/null; then
       return 0
     fi
     sleep 1
@@ -168,10 +194,10 @@ log "[4/7] Installing translate-service"
 "$VENV_DIR/bin/python" -m pip install -e "$PROJECT_ROOT"
 
 log "[5/7] Writing configuration"
-validate_no_newline "OLLAMA_BASE_URL" "$OLLAMA_BASE_URL"
-validate_no_newline "OLLAMA_MODEL" "$MODEL"
-validate_no_newline "DEFAULT_SOURCE_LANG" "$SOURCE_LANG"
-validate_no_newline "DEFAULT_TARGET_LANG" "$TARGET_LANG"
+validate_dotenv_token "OLLAMA_BASE_URL" "$OLLAMA_BASE_URL"
+validate_dotenv_token "OLLAMA_MODEL" "$MODEL"
+validate_lang_code "DEFAULT_SOURCE_LANG" "$SOURCE_LANG"
+validate_lang_code "DEFAULT_TARGET_LANG" "$TARGET_LANG"
 validate_no_newline "REQUEST_TIMEOUT_SECONDS" "$REQUEST_TIMEOUT_SECONDS"
 if [ -f "$ENV_PATH" ]; then
   ENV_BACKUP_PATH="$PROJECT_ROOT/.env.backup.$(date +%Y%m%d%H%M%S)"

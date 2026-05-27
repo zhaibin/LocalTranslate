@@ -11,6 +11,13 @@ def read_script(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def extract_function(script: str, name: str) -> str:
+    start = script.index(f"{name}() {{")
+    next_function = script.find("\n}\n\n", start)
+    assert next_function != -1
+    return script[start : next_function + 3]
+
+
 def test_install_script_exists_and_is_executable():
     assert INSTALL_SCRIPT.exists()
     assert INSTALL_SCRIPT.stat().st_mode & 0o111
@@ -79,7 +86,7 @@ def test_install_script_verifies_launchagent_after_kickstart():
 def test_install_script_checks_ollama_http_api_before_model_pull():
     script = read_script(INSTALL_SCRIPT)
 
-    readiness_check = 'curl -fsS "$OLLAMA_BASE_URL/api/tags"'
+    readiness_check = 'curl -fsS --connect-timeout 2 --max-time 5 "$OLLAMA_BASE_URL/api/tags"'
     model_pull = 'ollama pull "$MODEL"'
 
     assert readiness_check in script
@@ -132,8 +139,45 @@ def test_install_script_validates_port_is_numeric_before_launchagent():
 def test_install_script_validates_port_range():
     script = read_script(INSTALL_SCRIPT)
 
-    assert "port < 1 || port > 65535" in script
+    assert "port_num=$((10#$port))" in script
+    assert "port_num < 1 || port_num > 65535" in script
     assert "--port must be between 1 and 65535." in script
+
+
+def test_install_script_validates_port_boundaries_dynamically():
+    script = read_script(INSTALL_SCRIPT)
+    validate_port = extract_function(script, "validate_port")
+    harness = f"""
+set -euo pipefail
+die() {{ exit 42; }}
+{validate_port}
+
+expect_ok() {{
+  validate_port "$1"
+}}
+
+expect_fail() {{
+  if ( validate_port "$1" ); then
+    exit 99
+  fi
+}}
+
+expect_ok 1
+expect_ok 65535
+expect_fail 0
+expect_fail 65536
+expect_fail abc
+expect_fail 08
+"""
+
+    result = subprocess.run(
+        ["bash", "-c", harness],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_install_script_generates_plist_with_plistlib_not_xml_heredoc():
@@ -162,6 +206,19 @@ def test_install_script_backs_up_env_and_rejects_newlines():
     assert 'cp "$ENV_PATH" "$ENV_BACKUP_PATH"' in script
     assert "Backed up existing .env to" in script
     assert "literal newlines" in script
+
+
+def test_install_script_validates_env_values_before_writing_dotenv():
+    script = read_script(INSTALL_SCRIPT)
+
+    assert "validate_dotenv_token()" in script
+    assert "validate_lang_code()" in script
+    assert "whitespace, #, or quotes" in script
+    assert "[!A-Za-z0-9-]" in script
+    assert 'validate_dotenv_token "OLLAMA_BASE_URL" "$OLLAMA_BASE_URL"' in script
+    assert 'validate_dotenv_token "OLLAMA_MODEL" "$MODEL"' in script
+    assert 'validate_lang_code "DEFAULT_SOURCE_LANG" "$SOURCE_LANG"' in script
+    assert 'validate_lang_code "DEFAULT_TARGET_LANG" "$TARGET_LANG"' in script
 
 
 def test_install_script_has_valid_bash_syntax():
