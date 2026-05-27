@@ -42,9 +42,14 @@ class OllamaClient:
             raise OllamaModelError("Ollama returned an invalid response")
 
         try:
-            return str(data["response"])
+            translated_text = data["response"]
         except KeyError as exc:
             raise OllamaModelError("Ollama response did not include a response field") from exc
+
+        if not isinstance(translated_text, str):
+            raise OllamaModelError("Ollama response field was not a string")
+
+        return translated_text
 
     async def health(self) -> dict[str, object]:
         url = str(self.settings.ollama_base_url).rstrip("/") + "/api/tags"
@@ -53,12 +58,12 @@ class OllamaClient:
             async with httpx.AsyncClient(timeout=timeout) as client:
                 response = await client.get(url)
         except httpx.TimeoutException:
-            return {"ok": False, "status": "degraded", "reason": "timeout"}
+            return _degraded_health_response(self.settings, "timeout")
         except httpx.HTTPError:
-            return {"ok": False, "status": "degraded", "reason": "unavailable"}
+            return _degraded_health_response(self.settings, "unavailable")
 
         if response.status_code >= 400:
-            return {"ok": False, "status": "degraded", "reason": f"http_{response.status_code}"}
+            return _degraded_health_response(self.settings, f"http_{response.status_code}")
 
         try:
             data = response.json()
@@ -99,9 +104,13 @@ def _error_summary(response: httpx.Response) -> str:
 
 
 def _invalid_health_response(settings: Settings) -> dict[str, object]:
+    return _degraded_health_response(settings, "invalid_response")
+
+
+def _degraded_health_response(settings: Settings, reason: str) -> dict[str, object]:
     return {
         "ok": False,
         "status": "degraded",
-        "reason": "invalid_response",
+        "reason": reason,
         "model": settings.ollama_model,
     }

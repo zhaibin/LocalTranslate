@@ -119,6 +119,18 @@ async def test_generate_maps_non_object_response_to_model_error():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_generate_maps_non_string_response_field_to_model_error():
+    respx.post("http://127.0.0.1:11434/api/generate").mock(
+        return_value=httpx.Response(200, json={"response": None})
+    )
+    client = OllamaClient(Settings())
+
+    with pytest.raises(OllamaModelError):
+        await client.generate("prompt")
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_health_returns_ok_when_model_available():
     respx.get("http://127.0.0.1:11434/api/tags").mock(
         return_value=httpx.Response(
@@ -173,6 +185,60 @@ async def test_health_returns_degraded_for_invalid_json():
         "ok": False,
         "status": "degraded",
         "reason": "invalid_response",
+        "model": "translategemma:latest",
+    }
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_health_timeout_includes_model():
+    respx.get("http://127.0.0.1:11434/api/tags").mock(
+        side_effect=httpx.TimeoutException("timeout")
+    )
+    client = OllamaClient(Settings())
+
+    result = await client.health()
+
+    assert result == {
+        "ok": False,
+        "status": "degraded",
+        "reason": "timeout",
+        "model": "translategemma:latest",
+    }
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_health_unavailable_includes_model():
+    respx.get("http://127.0.0.1:11434/api/tags").mock(
+        side_effect=httpx.HTTPError("broken")
+    )
+    client = OllamaClient(Settings())
+
+    result = await client.health()
+
+    assert result == {
+        "ok": False,
+        "status": "degraded",
+        "reason": "unavailable",
+        "model": "translategemma:latest",
+    }
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_health_http_status_includes_model():
+    respx.get("http://127.0.0.1:11434/api/tags").mock(
+        return_value=httpx.Response(503, json={"error": "unavailable"})
+    )
+    client = OllamaClient(Settings())
+
+    result = await client.health()
+
+    assert result == {
+        "ok": False,
+        "status": "degraded",
+        "reason": "http_503",
         "model": "translategemma:latest",
     }
 
