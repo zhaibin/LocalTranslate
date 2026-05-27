@@ -30,6 +30,8 @@ class OllamaClient:
         except httpx.HTTPError as exc:
             raise OllamaUnavailableError("Ollama request failed") from exc
 
+        if response.status_code >= 500:
+            raise OllamaUnavailableError(_error_summary(response))
         if response.status_code >= 400:
             raise OllamaModelError(_error_summary(response))
 
