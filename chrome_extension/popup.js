@@ -29,21 +29,37 @@ function setMessage(text, type = "") {
 }
 
 function toLanguageList(result) {
-  if (Array.isArray(result)) {
-    return result;
+  const languages = Array.isArray(result) ? result : result?.languages;
+
+  if (!Array.isArray(languages)) {
+    return FALLBACK_LANGUAGES;
   }
 
-  if (Array.isArray(result?.languages)) {
-    return result.languages;
+  const validLanguages = languages.filter((language) => String(language?.code || "").trim());
+
+  return validLanguages.length > 0 ? validLanguages : FALLBACK_LANGUAGES;
+}
+
+function resolveLanguageCode(languages, preferredCode, defaultCode) {
+  const codes = new Set(languages.map((language) => language.code));
+
+  if (codes.has(preferredCode)) {
+    return preferredCode;
   }
 
-  return FALLBACK_LANGUAGES;
+  if (codes.has(defaultCode)) {
+    return defaultCode;
+  }
+
+  return languages[0].code;
 }
 
 function renderLanguages(languages) {
+  const languageOptions = toLanguageList(languages);
+
   for (const select of [elements.sourceLang, elements.targetLang]) {
     select.replaceChildren(
-      ...languages.map((language) => {
+      ...languageOptions.map((language) => {
         const option = document.createElement("option");
         option.value = language.code;
         option.textContent = `${language.name} (${language.code})`;
@@ -52,16 +68,16 @@ function renderLanguages(languages) {
     );
   }
 
-  elements.sourceLang.value = settings.sourceLang;
-  elements.targetLang.value = settings.targetLang;
-
-  if (!elements.sourceLang.value) {
-    elements.sourceLang.value = DEFAULT_SETTINGS.sourceLang;
-  }
-
-  if (!elements.targetLang.value) {
-    elements.targetLang.value = DEFAULT_SETTINGS.targetLang;
-  }
+  elements.sourceLang.value = resolveLanguageCode(
+    languageOptions,
+    settings.sourceLang,
+    DEFAULT_SETTINGS.sourceLang,
+  );
+  elements.targetLang.value = resolveLanguageCode(
+    languageOptions,
+    settings.targetLang,
+    DEFAULT_SETTINGS.targetLang,
+  );
 }
 
 async function loadSettings() {
@@ -77,7 +93,7 @@ async function loadLanguages() {
       throw new Error(response?.error || "Could not load languages.");
     }
 
-    renderLanguages(toLanguageList(response.result));
+    renderLanguages(response.result);
   } catch (error) {
     renderLanguages(FALLBACK_LANGUAGES);
     throw new Error(error.message || "Could not load languages.");
