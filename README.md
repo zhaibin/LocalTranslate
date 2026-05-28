@@ -97,9 +97,9 @@ language. Pass explicit language codes per request to override them.
 ## CLI
 
 ```bash
-translate text --from en --to zh "Hello"
-translate languages
-translate serve --host 127.0.0.1 --port 8000
+.venv/bin/translate text --from en --to zh "Hello"
+.venv/bin/translate languages
+.venv/bin/translate serve --host 127.0.0.1 --port 8000
 ```
 
 ## Local Web UI
@@ -107,7 +107,7 @@ translate serve --host 127.0.0.1 --port 8000
 Start the local HTTP server:
 
 ```bash
-translate serve --host 127.0.0.1 --port 8000
+.venv/bin/translate serve --host 127.0.0.1 --port 8000
 ```
 
 Then open the browser workbench at:
@@ -126,7 +126,7 @@ LaunchAgent serves the same web UI at `http://127.0.0.1:8000/`.
 Start the API server:
 
 ```bash
-translate serve --host 127.0.0.1 --port 8000
+.venv/bin/translate serve --host 127.0.0.1 --port 8000
 ```
 
 Translate text:

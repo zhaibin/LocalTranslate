@@ -110,4 +110,4 @@ def test_readme_documents_local_web_ui():
 
     assert "Local Web UI" in readme
     assert "http://127.0.0.1:8000/" in readme
-    assert "translate serve" in readme
+    assert ".venv/bin/translate serve" in readme
