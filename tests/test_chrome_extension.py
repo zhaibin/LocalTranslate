@@ -18,6 +18,12 @@ def test_manifest_v3_contract():
     assert manifest["background"]["service_worker"] == "background.js"
     assert manifest["action"]["default_popup"] == "popup.html"
     assert manifest["options_page"] == "options.html"
+    assert manifest["icons"] == {
+        "16": "icons/icon16.png",
+        "32": "icons/icon32.png",
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png",
+    }
 
 
 def test_manifest_permissions_cover_local_service_and_extension_apis():
@@ -45,10 +51,10 @@ def test_expected_extension_files_exist():
         "result.html",
         "result.js",
         "styles.css",
-        "icons/icon16.svg",
-        "icons/icon32.svg",
-        "icons/icon48.svg",
-        "icons/icon128.svg",
+        "icons/icon16.png",
+        "icons/icon32.png",
+        "icons/icon48.png",
+        "icons/icon128.png",
     ]
 
     for relative_path in expected_files:
@@ -74,3 +80,7 @@ def test_background_contains_context_menu_and_fallback_storage_flow():
     assert "chrome.storage.session" in background
     assert "result.html" in background
     assert "/translate" in background
+    assert "AbortController" in background
+    assert "Local translation timed out after" in background
+    assert "Try shorter text or check Ollama." in background
+    assert "getErrorServiceUrl" in background

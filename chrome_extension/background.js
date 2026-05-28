@@ -6,6 +6,8 @@ const DEFAULT_SETTINGS = {
 
 const CONTEXT_MENU_ID = "local-translate-selection";
 const SESSION_RESULT_KEY = "latestContextMenuResult";
+const REQUEST_TIMEOUT_MS = 25000;
+const REQUEST_TIMEOUT_SECONDS = REQUEST_TIMEOUT_MS / 1000;
 
 function normalizeServiceUrl(serviceUrl) {
   const rawUrl = String(serviceUrl || "").trim().replace(/\/+$/, "");
@@ -43,21 +45,37 @@ async function parseApiError(response) {
 
 async function requestJson(path, options = {}) {
   const settings = await getSettings();
-  const response = await fetch(`${settings.serviceUrl}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      ...(options.headers || {}),
-    },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
-  if (!response.ok) {
-    const message = await parseApiError(response);
-    throw new Error(message || `Request failed with status ${response.status}.`);
+  try {
+    const response = await fetch(`${settings.serviceUrl}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(options.headers || {}),
+      },
+    });
+
+    if (!response.ok) {
+      const message = await parseApiError(response);
+      throw new Error(message || `Request failed with status ${response.status}.`);
+    }
+
+    return response.json();
+  } catch (error) {
+    if (error?.name === "AbortError") {
+      throw new Error(
+        `Local translation timed out after ${REQUEST_TIMEOUT_SECONDS} seconds. Try shorter text or check Ollama.`,
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return response.json();
 }
 
 async function translateText(text, sourceLang, targetLang) {
@@ -108,28 +126,38 @@ async function showResult(tabId, payload) {
   }
 }
 
+function getErrorServiceUrl(settings) {
+  try {
+    return normalizeServiceUrl(settings?.serviceUrl || DEFAULT_SETTINGS.serviceUrl);
+  } catch (_error) {
+    return DEFAULT_SETTINGS.serviceUrl;
+  }
+}
+
 async function handleContextMenuClick(info, tab) {
   if (!tab?.id) {
     return;
   }
 
   const sourceText = String(info.selectionText || "").trim();
-  const settings = await getSettings();
+  let settings = { ...DEFAULT_SETTINGS };
 
   try {
-    await sendToTab(tab.id, {
-      type: "LOCAL_TRANSLATE_LOADING",
-      payload: {
-        status: "loading",
-        sourceText,
-        serviceUrl: settings.serviceUrl,
-      },
-    });
-  } catch (_error) {
-    // The fallback result page will still show the final result or error.
-  }
+    settings = await getSettings();
 
-  try {
+    try {
+      await sendToTab(tab.id, {
+        type: "LOCAL_TRANSLATE_LOADING",
+        payload: {
+          status: "loading",
+          sourceText,
+          serviceUrl: settings.serviceUrl,
+        },
+      });
+    } catch (_error) {
+      // The fallback result page will still show the final result or error.
+    }
+
     const result = await translateText(sourceText, settings.sourceLang, settings.targetLang);
 
     await showResult(tab.id, {
@@ -146,7 +174,7 @@ async function handleContextMenuClick(info, tab) {
       status: "error",
       sourceText,
       error: error.message || "Translation failed.",
-      serviceUrl: settings.serviceUrl,
+      serviceUrl: getErrorServiceUrl(settings),
     });
   }
 }
