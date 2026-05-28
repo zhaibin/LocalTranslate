@@ -291,3 +291,50 @@ def test_install_script_has_valid_bash_syntax():
     )
 
     assert result.returncode == 0, result.stderr
+
+
+def test_uninstall_script_exists_and_is_executable():
+    assert UNINSTALL_SCRIPT.exists()
+    assert UNINSTALL_SCRIPT.stat().st_mode & 0o111
+
+
+def test_uninstall_script_has_valid_bash_syntax():
+    result = subprocess.run(
+        ["bash", "-n", str(UNINSTALL_SCRIPT)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_uninstall_script_exposes_remove_venv_and_help():
+    script = read_script(UNINSTALL_SCRIPT)
+
+    assert "--remove-venv" in script
+    assert "--help" in script
+    assert "keeps the project source, Ollama, Ollama models, project .venv, and logs" in script
+
+
+def test_uninstall_script_unloads_user_launchagent_and_removes_plist():
+    script = read_script(UNINSTALL_SCRIPT)
+
+    assert 'launchctl bootout "gui/$UID" "$PLIST_PATH" >/dev/null 2>&1 || true' in script
+    assert "com.local.translate-service.plist" in script
+    assert "Library/LaunchAgents" in script
+    assert 'rm -f "$PLIST_PATH"' in script
+
+
+def test_uninstall_script_can_optionally_remove_project_virtualenv():
+    script = read_script(UNINSTALL_SCRIPT)
+
+    assert 'rm -rf "$PROJECT_ROOT/.venv"' in script
+    assert "Rerun with --remove-venv" in script
+
+
+def test_uninstall_script_is_conservative_about_external_state():
+    script = read_script(UNINSTALL_SCRIPT)
+
+    assert "ollama rm" not in script
+    assert "sudo" not in script
