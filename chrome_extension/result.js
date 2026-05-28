@@ -70,6 +70,7 @@ async function init() {
 
   if (payload.status === "error") {
     const serviceUrl = payload.serviceUrl || DEFAULT_SERVICE_URL;
+    elements.copyButton.disabled = true;
     setMessage(`Check the local service: ${serviceUrl}`, "error");
   }
 }

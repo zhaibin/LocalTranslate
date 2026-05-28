@@ -14,10 +14,10 @@
           Selected text
           <textarea id="sourceText" readonly></textarea>
         </label>
-        <label>
-          Result
-          <div id="resultText" class="result" role="status"></div>
-        </label>
+        <div class="field">
+          <h2 id="resultLabel">Result</h2>
+          <div id="resultText" class="result" role="status" aria-labelledby="resultLabel"></div>
+        </div>
       </section>
       <div class="actions">
         <button id="copyButton" type="button">Copy</button>

@@ -37,6 +37,19 @@ label {
   font-weight: 600;
 }
 
+.field {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+h2 {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
 input,
 select,
 textarea {
