@@ -4,6 +4,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 README = ROOT / "README.md"
+GITIGNORE = ROOT / ".gitignore"
 INSTALL_SCRIPT = ROOT / "scripts" / "install_macos.sh"
 UNINSTALL_SCRIPT = ROOT / "scripts" / "uninstall_macos.sh"
 
@@ -106,10 +107,17 @@ def test_install_script_polls_readiness_and_starts_fresh_local_ollama():
     assert "OLLAMA_READY_TIMEOUT_SECONDS=30" in script
     assert 'while [ "$elapsed" -lt "$OLLAMA_READY_TIMEOUT_SECONDS" ]' in script
     assert "brew services start ollama" in script
-    assert "ollama serve" in script
+    assert 'nohup ollama serve >> "$LOG_DIR/ollama.log" 2>&1 < /dev/null &' in script
     assert "ollama.log" in script
     assert '[ "$OLLAMA_BASE_URL" = "$DEFAULT_OLLAMA_BASE_URL" ]' in script
     assert "Installed Ollama is not ready" in script
+
+
+def test_generated_local_env_file_is_gitignored():
+    gitignore = GITIGNORE.read_text(encoding="utf-8")
+
+    assert ".env" in gitignore.splitlines()
+    assert ".env.backup.*" in gitignore.splitlines()
 
 
 def test_install_ollama_starts_existing_local_ollama_after_readiness_failure():

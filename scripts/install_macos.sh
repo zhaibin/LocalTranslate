@@ -139,7 +139,7 @@ start_local_ollama() {
     fi
   fi
 
-  ollama serve > "$LOG_DIR/ollama.log" 2>&1 &
+  nohup ollama serve >> "$LOG_DIR/ollama.log" 2>&1 < /dev/null &
 }
 
 log "[1/7] Checking macOS and Python"
