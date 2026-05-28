@@ -2,10 +2,11 @@
 
 Local translation service for Ollama and `translategemma:latest`.
 
-The project provides four local entry points:
+The project provides five local entry points:
 
 - Web UI: `http://127.0.0.1:8000/`
 - HTTP API: `/translate`, `/languages`, `/health`
+- Chrome extension: `chrome_extension/`
 - CLI: `.venv/bin/translate`
 - MCP stdio server: `python -m translate_service.mcp_server`
 
@@ -299,10 +300,18 @@ Start the local service first:
 In Chrome, open the extensions page, enable Developer mode, choose **Load unpacked**,
 and select the `chrome_extension/` directory.
 
+Use it in either mode:
+
+- Select text on a normal webpage, right-click, and choose **Translate selection locally**.
+- Click the extension icon to open the popup and translate pasted text manually.
+
 By default, the extension uses service URL `http://127.0.0.1:8000`, source
 language `en`, and target language `zh`. Use the extension options page to
 change the service URL and default languages. The extension does not save
 translation history.
+
+If Chrome cannot inject the page overlay, for example on a restricted browser
+page, the extension opens its fallback result page instead of failing silently.
 
 ## HTTP
 
@@ -362,9 +371,14 @@ Project handoff and current implementation notes live in
 Run local checks before publishing changes:
 
 ```bash
-pytest -q
-ruff check .
+.venv/bin/pytest -q
+.venv/bin/ruff check .
 node --check translate_service/web/static/app.js
+node --check chrome_extension/background.js
+node --check chrome_extension/content_script.js
+node --check chrome_extension/popup.js
+node --check chrome_extension/options.js
+node --check chrome_extension/result.js
 bash -n scripts/install.sh
 bash -n scripts/install_macos.sh
 bash -n scripts/uninstall_macos.sh

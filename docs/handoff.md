@@ -5,10 +5,11 @@ Date: 2026-05-28
 ## Current State
 
 The project is a local Ollama-backed translation service for `translategemma:latest`.
-The current baseline on `main` provides four entry points:
+The current baseline on `main` provides five local entry points:
 
 - HTTP API: `/translate`, `/languages`, `/health`
 - Local Web UI: `/`
+- Chrome extension: `chrome_extension/`
 - CLI: `.venv/bin/translate`
 - MCP stdio server: `python -m translate_service.mcp_server`
 
@@ -20,6 +21,8 @@ The current baseline on `main` provides four entry points:
 - The OpenAI-compatible entry point was intentionally removed from the design; MCP is the third integration entry point.
 - GitHub, macOS, Linux, and Windows deployment scripts are implemented.
 - Local Web UI is implemented without Node, npm, React, Vite, or any frontend build step.
+- Chrome extension is implemented as a static Manifest V3 extension with no npm or build step.
+- Chrome extension calls the local HTTP API from extension contexts; content scripts only render the page overlay.
 
 ## Important Files
 
@@ -32,6 +35,13 @@ The current baseline on `main` provides four entry points:
 - `translate_service/web/static/index.html`: Web UI markup.
 - `translate_service/web/static/styles.css`: Web UI styling.
 - `translate_service/web/static/app.js`: Web UI browser logic.
+- `chrome_extension/manifest.json`: Chrome Manifest V3 extension definition.
+- `chrome_extension/background.js`: context menu, settings, local API calls, and fallback routing.
+- `chrome_extension/content_script.js`: in-page translation overlay.
+- `chrome_extension/popup.html`, `chrome_extension/popup.js`: manual extension popup translation.
+- `chrome_extension/options.html`, `chrome_extension/options.js`: extension settings and service checks.
+- `chrome_extension/result.html`, `chrome_extension/result.js`: fallback result page for restricted pages.
+- `chrome_extension/styles.css`: shared extension page styling.
 - `translate_service/cli.py`: CLI commands.
 - `translate_service/mcp_server.py`: MCP stdio tools.
 - `scripts/install.sh`: GitHub bootstrap installer.
@@ -124,6 +134,43 @@ The Web UI currently includes:
 
 The language search inputs were removed to keep the browser UI focused and simple.
 
+## Chrome Extension
+
+The Chrome extension lives in `chrome_extension/` and is loaded manually as an
+unpacked extension during local use.
+
+Start the local service first:
+
+```bash
+.venv/bin/translate serve --host 127.0.0.1 --port 8000
+```
+
+In Chrome, open the extensions page, enable Developer mode, choose **Load
+unpacked**, and select the `chrome_extension/` directory.
+
+The extension currently includes:
+
+- Right-click translation for selected webpage text.
+- In-page overlay with loading, result, error, copy, and close states.
+- Fallback `result.html` page when the content script cannot be injected.
+- Popup manual translation flow.
+- Options page for service URL and default source/target languages.
+
+Defaults:
+
+- Service URL: `http://127.0.0.1:8000`
+- Source language: `en`
+- Target language: `zh`
+
+Extension storage behavior:
+
+- `chrome.storage.local` stores only settings.
+- `chrome.storage.session` stores only the latest fallback result for the current browser session.
+- Translation history is not persisted.
+
+Chrome manual verification was completed after loading the unpacked extension
+from `chrome_extension/`.
+
 ## Verification Commands
 
 Run full regression:
@@ -132,6 +179,11 @@ Run full regression:
 .venv/bin/pytest -q
 .venv/bin/ruff check .
 node --check translate_service/web/static/app.js
+node --check chrome_extension/background.js
+node --check chrome_extension/content_script.js
+node --check chrome_extension/popup.js
+node --check chrome_extension/options.js
+node --check chrome_extension/result.js
 bash -n scripts/install.sh
 bash -n scripts/install_macos.sh
 bash -n scripts/uninstall_macos.sh
@@ -172,19 +224,21 @@ The project baseline is healthy when all of these are true:
 - `GET /` serves the Web UI.
 - `GET /static/app.js` serves browser logic.
 - `GET /health` reports the configured model status.
+- Chrome extension loads as an unpacked extension from `chrome_extension/`.
+- Chrome extension right-click translation and popup translation work against the local service.
 - Real translation works when local Ollama is running and `translategemma:latest` is available.
-- README documents CLI, HTTP, MCP, Web UI, and cross-platform deployment.
+- README documents CLI, HTTP, MCP, Web UI, Chrome extension, and cross-platform deployment.
 
 ## Recent Context
 
-- `188b4dd fix: simplify language selectors`
-- `cbc9900 docs: use local translate entrypoint`
-- `4aa4180 docs: document local web UI`
-- `cb8e5c2 fix: preserve filtered language selections`
-- `30e8578 feat: add browser translation workbench`
-- `f18003e feat: serve local web translation UI`
-- `ee5a500 fix: keep macOS installer artifacts local`
-- `9596752 feat: add macOS uninstaller script`
+- `ad33eee merge: chrome extension local translation`
+- `0cedbff test: scope chrome extension README assertions`
+- `1968c42 docs: document chrome extension usage`
+- `c7a68e4 fix: keep extension language selects valid`
+- `8059192 fix: harden popup language and result handling`
+- `999b9cb feat: add translation overlay and fallback result page`
+- `d5dc087 fix: harden chrome extension background contract`
+- `0c3a22d feat: add chrome extension manifest and background core`
 
 ## Known Notes For Next Session
 
@@ -192,6 +246,9 @@ The project baseline is healthy when all of these are true:
 - `.env` and `.env.backup.*` are intentionally gitignored because the installer writes local configuration.
 - If a server is already running on port `8000`, stop it before starting another one or choose another port.
 - Browser automation via Playwright may not be installed in the Node REPL environment; HTTP smoke tests are sufficient unless browser tooling is available.
+- Chrome extension GUI verification is manual: load `chrome_extension/` as an unpacked extension, select text on a normal webpage, use the context menu, and test the popup/options pages.
+- The Chrome extension uses a 25-second request timeout in the background service worker to avoid Chrome Manifest V3 service worker long-fetch termination.
+- Chrome manifest icons are PNG files. Do not switch the manifest back to SVG icons.
 - Do not reintroduce an OpenAI-compatible endpoint unless the product direction changes.
 
 ## Cross-Platform Deployment
