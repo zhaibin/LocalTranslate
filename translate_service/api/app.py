@@ -1,5 +1,9 @@
+import mimetypes
+from pathlib import Path
+
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from translate_service.config import Settings
 from translate_service.errors import (
@@ -13,12 +17,22 @@ from translate_service.ollama_client import OllamaClient
 from translate_service.service import TranslationService
 
 
+WEB_STATIC_DIR = Path(__file__).resolve().parents[1] / "web" / "static"
+WEB_INDEX_PATH = WEB_STATIC_DIR / "index.html"
+mimetypes.add_type("application/javascript", ".js")
+
+
 def create_app(service: TranslationService | None = None) -> FastAPI:
     app = FastAPI(title="Local Ollama Translation Service")
     if service is None:
         settings = Settings()
         service = TranslationService(settings, OllamaClient(settings))
     app.state.translation_service = service
+    app.mount("/static", StaticFiles(directory=WEB_STATIC_DIR), name="static")
+
+    @app.get("/", include_in_schema=False)
+    async def web_index():
+        return FileResponse(WEB_INDEX_PATH)
 
     from translate_service.api.routes_system import router as system_router
     from translate_service.api.routes_translate import router as translate_router

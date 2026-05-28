@@ -49,3 +49,29 @@ def test_health_route_returns_status():
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_web_root_returns_translation_workbench_html():
+    client = TestClient(create_app(FakeService()))
+
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "text/html" in response.headers["content-type"]
+    assert '<main id="app"' in response.text
+    assert 'src="/static/app.js"' in response.text
+    assert 'href="/static/styles.css"' in response.text
+
+
+def test_web_static_assets_are_served():
+    client = TestClient(create_app(FakeService()))
+
+    js_response = client.get("/static/app.js")
+    css_response = client.get("/static/styles.css")
+
+    assert js_response.status_code == 200
+    assert "application/javascript" in js_response.headers["content-type"]
+    assert "async function translateText" in js_response.text
+    assert css_response.status_code == 200
+    assert "text/css" in css_response.headers["content-type"]
+    assert ".workbench" in css_response.text
