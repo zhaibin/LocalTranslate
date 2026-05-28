@@ -170,3 +170,41 @@ Phase 1 is accepted when all of these are true:
 - If a server is already running on port `8000`, stop it before starting another one or choose another port.
 - Browser automation via Playwright may not be installed in the Node REPL environment; HTTP smoke tests are sufficient unless browser tooling is available.
 - Do not reintroduce an OpenAI-compatible endpoint unless the product direction changes.
+
+## Post-Phase 1 Cross-Platform Deployment
+
+Added after this Phase 1 handoff:
+
+- Linux installer: `scripts/install_linux.sh`
+- Linux uninstaller: `scripts/uninstall_linux.sh`
+- Windows installer: `scripts/install_windows.ps1`
+- Windows uninstaller: `scripts/uninstall_windows.ps1`
+- Cross-platform deployment tests: `tests/test_cross_platform_scripts.py`
+
+Linux service mode installs a per-user `systemd --user` service named
+`translate-service.service`.
+
+Windows service mode installs a per-user scheduled task named `TranslateService`.
+
+The Linux and Windows uninstallers intentionally keep Ollama, downloaded models,
+project source, and logs by default, matching the conservative macOS uninstaller.
+
+Windows installer/runtime verification should be performed in the local
+Parallels Desktop Windows VM.
+
+Windows test notes from 2026-05-28:
+
+- Use a VM-internal checkout or copy for installer tests. Running the installer
+  directly from a Parallels shared folder can overwrite the macOS `.venv`
+  metadata with Windows paths.
+- Windows 11 ARM64 with Python 3.12 installs successfully when
+  `cryptography==46.0.3` is pinned; newer `cryptography` releases selected by
+  pip did not have a compatible wheel and attempted a failing OpenSSL source
+  build.
+- CLI `languages` output and the local HTTP `/health` smoke path were verified
+  in the VM.
+- `-InstallService` currently fails under `prlctl exec --current-user` because
+  Windows denies scheduled task creation in that execution context. The script
+  now fails fast instead of reporting success. Verify scheduled task creation
+  from an interactive Windows PowerShell session, using Run as Administrator if
+  Windows policy requires it.

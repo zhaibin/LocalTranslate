@@ -13,6 +13,10 @@ def test_languages_command_lists_languages():
     assert "zh-Hans" in result.stdout
 
 
+def test_cli_output_escapes_characters_not_supported_by_stdout_encoding():
+    assert cli._encode_for_stdout("ok 𐍈", "gbk") == "ok \\U00010348"
+
+
 def test_text_command_requires_text():
     result = runner.invoke(app, ["text", "--from", "en", "--to", "zh", ""])
 
