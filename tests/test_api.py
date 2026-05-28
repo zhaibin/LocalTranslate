@@ -65,9 +65,7 @@ def test_web_root_returns_translation_workbench_html():
     assert 'href="/static/styles.css"' in response.text
     for expected in [
         'id="sourceText"',
-        'id="sourceSearch"',
         'id="sourceLang"',
-        'id="targetSearch"',
         'id="targetLang"',
         'id="swapLanguages"',
         'id="translateButton"',
@@ -95,11 +93,11 @@ def test_web_static_assets_are_served():
         "swapLanguages",
         "copyResult",
         "renderLanguageOptions",
-        "ensureLanguageOption",
-        "renderLanguageOptions(elements.sourceLang",
         "showMessage",
     ]:
         assert expected in js_response.text
+    assert "sourceSearch" not in js_response.text
+    assert "targetSearch" not in js_response.text
     assert css_response.status_code == 200
     assert "text/css" in css_response.headers["content-type"]
     assert ".workbench" in css_response.text

@@ -5,8 +5,6 @@ const state = {
 const elements = {
   sourceText: document.querySelector("#sourceText"),
   resultText: document.querySelector("#resultText"),
-  sourceSearch: document.querySelector("#sourceSearch"),
-  targetSearch: document.querySelector("#targetSearch"),
   sourceLang: document.querySelector("#sourceLang"),
   targetLang: document.querySelector("#targetLang"),
   swapLanguages: document.querySelector("#swapLanguages"),
@@ -26,42 +24,17 @@ function languageLabel(language) {
   return `${language.name} (${language.code})`;
 }
 
-function filteredLanguages(query) {
-  const normalized = query.trim().toLowerCase();
-  if (!normalized) {
-    return state.languages;
-  }
-  return state.languages.filter((language) => {
-    return (
-      language.code.toLowerCase().includes(normalized) ||
-      language.name.toLowerCase().includes(normalized)
-    );
-  });
-}
-
-function ensureLanguageOption(languages, code) {
-  if (!code || languages.some((language) => language.code === code)) {
-    return languages;
-  }
-  const language = state.languages.find((candidate) => candidate.code === code);
-  if (!language) {
-    return languages;
-  }
-  return [language, ...languages];
-}
-
-function renderLanguageOptions(select, query, preferredCode) {
+function renderLanguageOptions(select, preferredCode) {
   const current = preferredCode || select.value;
-  const languages = ensureLanguageOption(filteredLanguages(query), current);
   select.replaceChildren(
-    ...languages.map((language) => {
+    ...state.languages.map((language) => {
       const option = document.createElement("option");
       option.value = language.code;
       option.textContent = languageLabel(language);
       return option;
     }),
   );
-  if (languages.some((language) => language.code === current)) {
+  if (state.languages.some((language) => language.code === current)) {
     select.value = current;
   }
 }
@@ -82,8 +55,8 @@ async function loadLanguages() {
   }
   const body = await response.json();
   state.languages = body.languages;
-  renderLanguageOptions(elements.sourceLang, elements.sourceSearch.value, "en");
-  renderLanguageOptions(elements.targetLang, elements.targetSearch.value, "zh");
+  renderLanguageOptions(elements.sourceLang, "en");
+  renderLanguageOptions(elements.targetLang, "zh");
 }
 
 async function loadHealth() {
@@ -104,8 +77,6 @@ async function loadHealth() {
 function swapLanguages() {
   const source = elements.sourceLang.value;
   const target = elements.targetLang.value;
-  renderLanguageOptions(elements.sourceLang, elements.sourceSearch.value, target);
-  renderLanguageOptions(elements.targetLang, elements.targetSearch.value, source);
   elements.sourceLang.value = target;
   elements.targetLang.value = source;
   showMessage("Languages swapped.");
@@ -160,12 +131,6 @@ async function copyResult() {
 }
 
 function bindEvents() {
-  elements.sourceSearch.addEventListener("input", () => {
-    renderLanguageOptions(elements.sourceLang, elements.sourceSearch.value);
-  });
-  elements.targetSearch.addEventListener("input", () => {
-    renderLanguageOptions(elements.targetLang, elements.targetSearch.value);
-  });
   elements.swapLanguages.addEventListener("click", swapLanguages);
   elements.translateButton.addEventListener("click", translateText);
   elements.copyButton.addEventListener("click", copyResult);
