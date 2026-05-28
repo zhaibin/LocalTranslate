@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Local Translate</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="page popup">
+      <h1>Local Translate</h1>
+      <label>
+        Text
+        <textarea id="sourceText"></textarea>
+      </label>
+      <label>
+        From
+        <select id="sourceLang"></select>
+      </label>
+      <label>
+        To
+        <select id="targetLang"></select>
+      </label>
+      <div class="actions">
+        <button id="swapButton" type="button">Swap</button>
+        <button id="translateButton" class="primary" type="button">Translate</button>
+      </div>
+      <label>
+        Translation
+        <textarea id="resultText" readonly></textarea>
+      </label>
+      <div class="actions">
+        <button id="copyButton" type="button">Copy</button>
+        <button id="optionsButton" type="button">Options</button>
+      </div>
+      <p id="message" class="message"></p>
+    </main>
+    <script src="popup.js" defer></script>
+  </body>
+</html>
