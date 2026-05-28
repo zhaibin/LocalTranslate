@@ -284,6 +284,26 @@ The page uses the same local API endpoints as other clients: `/translate` for
 translation, `/languages` for supported language choices, and `/health` for
 service status.
 
+## Chrome Extension
+
+This repository includes a local Chrome extension in `chrome_extension/`. The
+extension translates selected webpage text through the local HTTP service and
+also provides a popup for manual translation.
+
+Start the local service first:
+
+```bash
+.venv/bin/translate serve
+```
+
+In Chrome, open the extensions page, enable Developer mode, choose **Load unpacked**,
+and select the `chrome_extension/` directory.
+
+By default, the extension uses service URL `http://127.0.0.1:8000`, source
+language `en`, and target language `zh`. Use the extension options page to
+change the service URL and default languages. The extension does not save
+translation history.
+
 ## HTTP
 
 Start the API server:

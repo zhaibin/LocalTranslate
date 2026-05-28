@@ -1,0 +1,202 @@
+const DEFAULT_SETTINGS = {
+  serviceUrl: "http://127.0.0.1:8000",
+  sourceLang: "en",
+  targetLang: "zh",
+};
+
+const FALLBACK_LANGUAGES = [
+  { code: "en", name: "English" },
+  { code: "zh", name: "Chinese" },
+];
+
+let settings = { ...DEFAULT_SETTINGS };
+
+const elements = {
+  sourceText: document.querySelector("#sourceText"),
+  sourceLang: document.querySelector("#sourceLang"),
+  targetLang: document.querySelector("#targetLang"),
+  swapButton: document.querySelector("#swapButton"),
+  translateButton: document.querySelector("#translateButton"),
+  resultText: document.querySelector("#resultText"),
+  copyButton: document.querySelector("#copyButton"),
+  optionsButton: document.querySelector("#optionsButton"),
+  message: document.querySelector("#message"),
+};
+
+function setMessage(text, type = "") {
+  elements.message.textContent = text;
+  elements.message.className = `message ${type}`.trim();
+}
+
+function toLanguageList(result) {
+  const languages = Array.isArray(result) ? result : result?.languages;
+
+  if (!Array.isArray(languages)) {
+    return FALLBACK_LANGUAGES;
+  }
+
+  const validLanguages = languages.filter((language) => String(language?.code || "").trim());
+
+  return validLanguages.length > 0 ? validLanguages : FALLBACK_LANGUAGES;
+}
+
+function resolveLanguageCode(languages, preferredCode, defaultCode) {
+  const codes = new Set(languages.map((language) => language.code));
+
+  if (codes.has(preferredCode)) {
+    return preferredCode;
+  }
+
+  if (codes.has(defaultCode)) {
+    return defaultCode;
+  }
+
+  return languages[0].code;
+}
+
+function renderLanguages(languages) {
+  const languageOptions = toLanguageList(languages);
+
+  for (const select of [elements.sourceLang, elements.targetLang]) {
+    select.replaceChildren(
+      ...languageOptions.map((language) => {
+        const option = document.createElement("option");
+        option.value = language.code;
+        option.textContent = `${language.name} (${language.code})`;
+        return option;
+      }),
+    );
+  }
+
+  elements.sourceLang.value = resolveLanguageCode(
+    languageOptions,
+    settings.sourceLang,
+    DEFAULT_SETTINGS.sourceLang,
+  );
+  elements.targetLang.value = resolveLanguageCode(
+    languageOptions,
+    settings.targetLang,
+    DEFAULT_SETTINGS.targetLang,
+  );
+}
+
+async function loadSettings() {
+  const stored = await chrome.storage.local.get(DEFAULT_SETTINGS);
+  settings = { ...DEFAULT_SETTINGS, ...stored };
+}
+
+async function loadLanguages() {
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "LOCAL_TRANSLATE_LANGUAGES" });
+
+    if (!response?.ok) {
+      throw new Error(response?.error || "Could not load languages.");
+    }
+
+    renderLanguages(response.result);
+  } catch (error) {
+    renderLanguages(FALLBACK_LANGUAGES);
+    throw new Error(error.message || "Could not load languages.");
+  }
+}
+
+function setTranslateLoading(isLoading) {
+  elements.translateButton.disabled = isLoading;
+  elements.translateButton.textContent = isLoading ? "Translating..." : "Translate";
+}
+
+function getTranslationText(result) {
+  const candidates = [
+    result?.translation,
+    result?.translated_text,
+    result?.text,
+    result?.translation?.translation ||
+      result?.translation?.translated_text ||
+      result?.translation?.text,
+    result?.raw?.translation,
+    result?.raw?.translation?.translation ||
+      result?.raw?.translation?.translated_text ||
+      result?.raw?.translation?.text,
+    result?.raw?.translated_text,
+    result?.raw?.text,
+  ];
+
+  return candidates.find((value) => typeof value === "string" && value) || "";
+}
+
+async function translate() {
+  const text = elements.sourceText.value.trim();
+
+  if (!text) {
+    setMessage("Enter text to translate.", "error");
+    return;
+  }
+
+  setTranslateLoading(true);
+  setMessage("Translating...");
+
+  try {
+    const response = await chrome.runtime.sendMessage({
+      type: "LOCAL_TRANSLATE_TRANSLATE",
+      text,
+      sourceLang: elements.sourceLang.value,
+      targetLang: elements.targetLang.value,
+    });
+
+    if (!response?.ok) {
+      throw new Error(response?.error || "Translation failed.");
+    }
+
+    const translation = getTranslationText(response.result);
+    elements.resultText.value = translation;
+
+    if (!translation) {
+      setMessage("No translation text was returned.", "error");
+      return;
+    }
+
+    setMessage("Translation complete.", "success");
+  } catch (error) {
+    setMessage(error.message || "Translation failed.", "error");
+  } finally {
+    setTranslateLoading(false);
+  }
+}
+
+async function copyResult() {
+  const text = elements.resultText.value;
+
+  if (!text) {
+    setMessage("No translation to copy.", "error");
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(text);
+    setMessage("Copied.", "success");
+  } catch (_error) {
+    setMessage("Copy failed. Select the translation and copy manually.", "error");
+  }
+}
+
+function swapLanguages() {
+  const sourceLang = elements.sourceLang.value;
+  elements.sourceLang.value = elements.targetLang.value;
+  elements.targetLang.value = sourceLang;
+}
+
+async function init() {
+  elements.translateButton.addEventListener("click", translate);
+  elements.copyButton.addEventListener("click", copyResult);
+  elements.swapButton.addEventListener("click", swapLanguages);
+  elements.optionsButton.addEventListener("click", () => chrome.runtime.openOptionsPage());
+
+  try {
+    await loadSettings();
+    await loadLanguages();
+  } catch (error) {
+    setMessage(error.message || "Could not initialize popup.", "error");
+  }
+}
+
+document.addEventListener("DOMContentLoaded", init);
