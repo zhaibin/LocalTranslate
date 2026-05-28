@@ -350,7 +350,7 @@ def test_readme_documents_macos_one_command_install_section():
 
     assert "## macOS One-Command Install" in readme
     assert "macOS" in readme
-    assert "Python 3.10+" in readme
+    assert "Python 3.11+" in readme
     assert "Ollama" in readme
     assert "--install-ollama" in readme
     assert "Homebrew" in readme

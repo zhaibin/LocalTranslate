@@ -17,7 +17,7 @@ ollama pull translategemma:latest
 Prerequisites:
 
 - macOS
-- Python 3.10+
+- Python 3.11+
 - Ollama
 
 If Ollama is not installed, the installer can prepare it with `--install-ollama`.
