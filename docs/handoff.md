@@ -1,20 +1,16 @@
-# Phase 1 Handoff
+# Project Handoff
 
 Date: 2026-05-28
 
 ## Current State
 
-Phase 1 is complete on `main`.
-
 The project is a local Ollama-backed translation service for `translategemma:latest`.
-It now provides four entry points:
+The current baseline on `main` provides four entry points:
 
 - HTTP API: `/translate`, `/languages`, `/health`
 - Local Web UI: `/`
 - CLI: `.venv/bin/translate`
 - MCP stdio server: `python -m translate_service.mcp_server`
-
-The current working tree was clean when this handoff was written.
 
 ## Key Requirements Implemented
 
@@ -22,7 +18,7 @@ The current working tree was clean when this handoff was written.
 - Default model is `translategemma:latest`.
 - Supported languages are loaded from `translate_service/language_data.tsv`.
 - The OpenAI-compatible entry point was intentionally removed from the design; MCP is the third integration entry point.
-- macOS one-command deployment is implemented.
+- GitHub, macOS, Linux, and Windows deployment scripts are implemented.
 - Local Web UI is implemented without Node, npm, React, Vite, or any frontend build step.
 
 ## Important Files
@@ -38,9 +34,33 @@ The current working tree was clean when this handoff was written.
 - `translate_service/web/static/app.js`: Web UI browser logic.
 - `translate_service/cli.py`: CLI commands.
 - `translate_service/mcp_server.py`: MCP stdio tools.
+- `scripts/install.sh`: GitHub bootstrap installer.
 - `scripts/install_macos.sh`: macOS installer.
 - `scripts/uninstall_macos.sh`: macOS uninstaller.
+- `scripts/install_linux.sh`: Linux installer.
+- `scripts/uninstall_linux.sh`: Linux uninstaller.
+- `scripts/install_windows.ps1`: Windows installer.
+- `scripts/uninstall_windows.ps1`: Windows uninstaller.
 - `README.md`: user-facing setup and usage docs.
+
+## GitHub Bootstrap Install
+
+Install from the GitHub-hosted bootstrap script:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/zhaibin/LocalTranslate/main/scripts/install.sh)"
+```
+
+By default it deploys the code to `~/.local/share/local-translate`, installs or
+prepares Ollama, pulls the default model, and installs the local HTTP service.
+
+Useful options:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/zhaibin/LocalTranslate/main/scripts/install.sh)" -- --install-dir "$HOME/apps/local-translate"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/zhaibin/LocalTranslate/main/scripts/install.sh)" -- --no-install-service
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/zhaibin/LocalTranslate/main/scripts/install.sh)" -- --no-install-ollama --no-pull-model
+```
 
 ## macOS Deployment
 
@@ -102,7 +122,7 @@ The Web UI currently includes:
 - Health/status display.
 - Inline error/status messages.
 
-The language search inputs were removed as unnecessary for Phase 1.
+The language search inputs were removed to keep the browser UI focused and simple.
 
 ## Verification Commands
 
@@ -112,8 +132,11 @@ Run full regression:
 .venv/bin/pytest -q
 .venv/bin/ruff check .
 node --check translate_service/web/static/app.js
+bash -n scripts/install.sh
 bash -n scripts/install_macos.sh
 bash -n scripts/uninstall_macos.sh
+bash -n scripts/install_linux.sh
+bash -n scripts/uninstall_linux.sh
 ```
 
 Run local Web/API smoke:
@@ -138,21 +161,21 @@ Expected health result when Ollama and model are available:
 }
 ```
 
-## Phase 1 Acceptance Standard
+## Current Baseline Standard
 
-Phase 1 is accepted when all of these are true:
+The project baseline is healthy when all of these are true:
 
 - Full test suite passes.
 - Ruff passes.
-- macOS installer and uninstaller pass bash syntax checks.
+- GitHub bootstrap, macOS, and Linux installer/uninstaller scripts pass bash syntax checks.
 - `node --check translate_service/web/static/app.js` passes.
 - `GET /` serves the Web UI.
 - `GET /static/app.js` serves browser logic.
 - `GET /health` reports the configured model status.
 - Real translation works when local Ollama is running and `translategemma:latest` is available.
-- README documents CLI, HTTP, MCP, Web UI, and macOS deployment.
+- README documents CLI, HTTP, MCP, Web UI, and cross-platform deployment.
 
-## Recent Important Commits
+## Recent Context
 
 - `188b4dd fix: simplify language selectors`
 - `cbc9900 docs: use local translate entrypoint`
@@ -171,15 +194,15 @@ Phase 1 is accepted when all of these are true:
 - Browser automation via Playwright may not be installed in the Node REPL environment; HTTP smoke tests are sufficient unless browser tooling is available.
 - Do not reintroduce an OpenAI-compatible endpoint unless the product direction changes.
 
-## Post-Phase 1 Cross-Platform Deployment
+## Cross-Platform Deployment
 
-Added after this Phase 1 handoff:
+Cross-platform deployment support includes:
 
-- Linux installer: `scripts/install_linux.sh`
-- Linux uninstaller: `scripts/uninstall_linux.sh`
-- Windows installer: `scripts/install_windows.ps1`
-- Windows uninstaller: `scripts/uninstall_windows.ps1`
-- Cross-platform deployment tests: `tests/test_cross_platform_scripts.py`
+- GitHub bootstrap installer: `scripts/install.sh`.
+- macOS installer and uninstaller: `scripts/install_macos.sh`, `scripts/uninstall_macos.sh`.
+- Linux installer and uninstaller: `scripts/install_linux.sh`, `scripts/uninstall_linux.sh`.
+- Windows installer and uninstaller: `scripts/install_windows.ps1`, `scripts/uninstall_windows.ps1`.
+- Cross-platform deployment tests: `tests/test_cross_platform_scripts.py`.
 
 Linux service mode installs a per-user `systemd --user` service named
 `translate-service.service`.

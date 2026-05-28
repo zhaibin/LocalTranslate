@@ -2,11 +2,62 @@
 
 Local translation service for Ollama and `translategemma:latest`.
 
+The project provides four local entry points:
+
+- Web UI: `http://127.0.0.1:8000/`
+- HTTP API: `/translate`, `/languages`, `/health`
+- CLI: `.venv/bin/translate`
+- MCP stdio server: `python -m translate_service.mcp_server`
+
+## GitHub One-Line Install
+
+Use this path for a fresh install from GitHub:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/zhaibin/LocalTranslate/main/scripts/install.sh)"
+```
+
+The bootstrap script detects the operating system, deploys the code to
+`~/.local/share/local-translate`, installs or prepares Ollama, pulls
+`translategemma:latest`, and installs the local HTTP service.
+
+Prerequisites for the bootstrap command:
+
+- macOS or Linux: `bash`, `curl`, `git`, Python 3.11+
+- macOS Ollama auto-install: Homebrew
+- Linux Ollama auto-install: official Ollama install script
+- Windows: Git Bash plus Windows PowerShell or PowerShell 7+, Python 3.11+, and
+  `winget` when using Ollama auto-install
+
+Common options:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/zhaibin/LocalTranslate/main/scripts/install.sh)" -- --install-dir "$HOME/apps/local-translate"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/zhaibin/LocalTranslate/main/scripts/install.sh)" -- --no-install-service
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/zhaibin/LocalTranslate/main/scripts/install.sh)" -- --no-install-ollama --no-pull-model
+```
+
+Environment overrides are also supported:
+
+```bash
+LOCALTRANSLATE_INSTALL_DIR="$HOME/apps/local-translate" \
+LOCALTRANSLATE_REF=main \
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/zhaibin/LocalTranslate/main/scripts/install.sh)"
+```
+
+After service install, check:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
 ## Requirements
+
+Manual or checkout-based installs need:
 
 - Python 3.11+
 - A running Ollama server
-- The `translategemma:latest` model installed locally:
+- The `translategemma:latest` model installed locally
 
 ```bash
 ollama pull translategemma:latest
@@ -45,12 +96,6 @@ Prepare Ollama/model and install the user service in one command:
 
 ```bash
 scripts/install_macos.sh --install-ollama --install-service
-```
-
-After installing the service, check health at:
-
-```bash
-curl http://127.0.0.1:8000/health
 ```
 
 Manage the service with:
@@ -117,12 +162,6 @@ Prepare Ollama/model and install the user service in one command:
 scripts/install_linux.sh --install-ollama --install-service
 ```
 
-After installing the service, check health at:
-
-```bash
-curl http://127.0.0.1:8000/health
-```
-
 Manage the service with:
 
 ```bash
@@ -174,21 +213,15 @@ Install the HTTP API as a per-user scheduled task:
 powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1 -InstallService
 ```
 
-If scheduled task registration returns `Access is denied`, rerun the command
-from an interactive PowerShell session in the Windows VM, using Run as
-Administrator if your Windows policy requires it.
-
 Prepare Ollama/model and install the user scheduled task in one command:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1 -InstallOllama -InstallService
 ```
 
-After installing the service, check health at:
-
-```powershell
-curl http://127.0.0.1:8000/health
-```
+If scheduled task registration returns `Access is denied`, rerun the command
+from an interactive PowerShell session, using Run as Administrator if your
+Windows policy requires it.
 
 Manage the scheduled task with:
 
@@ -214,15 +247,16 @@ The uninstaller keeps Ollama and downloaded models by default.
 
 ## Configuration
 
-Copy `.env.example` to `.env` and adjust values if your Ollama host, model, or default
-languages differ.
+The installers write `.env` in the project directory. For manual setup, copy the
+example file and adjust values if your Ollama host, model, or default languages
+differ.
 
 ```bash
 cp .env.example .env
 ```
 
-Defaults use English (`en`) as the source language and Chinese (`zh`) as the target
-language. Pass explicit language codes per request to override them.
+Defaults use English (`en`) as the source language and Chinese (`zh`) as the
+target language. Pass explicit language codes per request to override them.
 
 ## CLI
 
@@ -240,7 +274,7 @@ Start the local HTTP server:
 .venv/bin/translate serve --host 127.0.0.1 --port 8000
 ```
 
-Then open the browser workbench at:
+Then open:
 
 ```text
 http://127.0.0.1:8000/
@@ -248,8 +282,7 @@ http://127.0.0.1:8000/
 
 The page uses the same local API endpoints as other clients: `/translate` for
 translation, `/languages` for supported language choices, and `/health` for
-service status. If the macOS `--install-service` option is installed, the
-LaunchAgent serves the same web UI at `http://127.0.0.1:8000/`.
+service status.
 
 ## HTTP
 
@@ -274,6 +307,19 @@ curl http://127.0.0.1:8000/languages
 curl http://127.0.0.1:8000/health
 ```
 
+Expected healthy response when Ollama and the model are available:
+
+```json
+{
+  "status": "ok",
+  "model": "translategemma:latest",
+  "ollama": {
+    "ok": true,
+    "model_available": true
+  }
+}
+```
+
 ## MCP
 
 Run the MCP stdio server with:
@@ -288,11 +334,18 @@ Available MCP tools:
 - `list_languages`: return supported language codes.
 - `health`: check the configured Ollama model status.
 
-## Development Checks
+## Maintenance
+
+Project handoff and current implementation notes live in
+`docs/handoff.md`.
+
+Run local checks before publishing changes:
 
 ```bash
 pytest -q
 ruff check .
+node --check translate_service/web/static/app.js
+bash -n scripts/install.sh
 bash -n scripts/install_macos.sh
 bash -n scripts/uninstall_macos.sh
 bash -n scripts/install_linux.sh
@@ -300,6 +353,6 @@ bash -n scripts/uninstall_linux.sh
 python -c 'from translate_service.prompt import build_prompt; p=build_prompt(source_name="English",source_code="en",target_name="Chinese",target_code="zh",text="Hello"); print(repr(p[-12:]))'
 ```
 
-Run Windows installer checks inside the local Parallels Desktop Windows VM.
-Use a VM-internal checkout or copy for install tests so Windows `.venv` files do
-not overwrite the macOS project virtual environment through a shared folder.
+Run Windows installer checks inside a Windows environment. Use a VM-internal
+checkout or copy for install tests so Windows `.venv` files do not overwrite
+the macOS project virtual environment through a shared folder.

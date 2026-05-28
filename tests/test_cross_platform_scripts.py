@@ -8,6 +8,7 @@ README = ROOT / "README.md"
 PYPROJECT = ROOT / "pyproject.toml"
 INSTALL_LINUX_SCRIPT = ROOT / "scripts" / "install_linux.sh"
 UNINSTALL_LINUX_SCRIPT = ROOT / "scripts" / "uninstall_linux.sh"
+BOOTSTRAP_SCRIPT = ROOT / "scripts" / "install.sh"
 INSTALL_WINDOWS_SCRIPT = ROOT / "scripts" / "install_windows.ps1"
 UNINSTALL_WINDOWS_SCRIPT = ROOT / "scripts" / "uninstall_windows.ps1"
 
@@ -90,6 +91,52 @@ def test_linux_uninstall_script_removes_user_systemd_service_conservatively():
 def test_linux_uninstall_script_has_valid_bash_syntax():
     result = subprocess.run(
         ["bash", "-n", str(UNINSTALL_LINUX_SCRIPT)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_github_bootstrap_script_exists_and_is_executable():
+    assert BOOTSTRAP_SCRIPT.exists()
+    assert BOOTSTRAP_SCRIPT.stat().st_mode & 0o111
+
+
+def test_github_bootstrap_script_detects_platform_and_deploys_checkout():
+    script = read(BOOTSTRAP_SCRIPT)
+
+    assert 'DEFAULT_REPO_URL="https://github.com/zhaibin/LocalTranslate.git"' in script
+    assert 'DEFAULT_INSTALL_DIR="${LOCALTRANSLATE_INSTALL_DIR:-$HOME/.local/share/local-translate}"' in script
+    assert 'git clone "$REPO_URL" "$INSTALL_DIR"' in script
+    assert 'git -C "$INSTALL_DIR" fetch --tags origin "$REF"' in script
+    assert 'git -C "$INSTALL_DIR" checkout --detach FETCH_HEAD' in script
+    assert "Darwin)" in script
+    assert 'PLATFORM_SCRIPT="scripts/install_macos.sh"' in script
+    assert "Linux)" in script
+    assert 'PLATFORM_SCRIPT="scripts/install_linux.sh"' in script
+    assert "MINGW*|MSYS*|CYGWIN*)" in script
+    assert 'PLATFORM_SCRIPT="scripts/install_windows.ps1"' in script
+
+
+def test_github_bootstrap_defaults_to_ollama_model_and_service_install():
+    script = read(BOOTSTRAP_SCRIPT)
+
+    assert "INSTALL_OLLAMA=1" in script
+    assert "INSTALL_SERVICE=1" in script
+    assert "PULL_MODEL=1" in script
+    assert "--no-install-ollama" in script
+    assert "--no-install-service" in script
+    assert 'INSTALL_ARGS+=("--install-ollama")' in script
+    assert 'INSTALL_ARGS+=("--install-service")' in script
+    assert 'INSTALL_ARGS+=("--pull-model")' in script
+    assert 'INSTALL_ARGS+=("--no-pull-model")' in script
+
+
+def test_github_bootstrap_script_has_valid_bash_syntax():
+    result = subprocess.run(
+        ["bash", "-n", str(BOOTSTRAP_SCRIPT)],
         capture_output=True,
         text=True,
         check=False,
@@ -184,6 +231,9 @@ def test_readme_documents_linux_and_windows_install_paths():
     readme = read(README)
 
     for expected in [
+        "## GitHub One-Line Install",
+        "https://raw.githubusercontent.com/zhaibin/LocalTranslate/main/scripts/install.sh",
+        "LOCALTRANSLATE_INSTALL_DIR",
         "## Linux One-Command Install",
         "scripts/install_linux.sh",
         "systemctl --user status translate-service.service",
