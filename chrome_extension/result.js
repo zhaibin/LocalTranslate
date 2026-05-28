@@ -50,27 +50,31 @@ async function copyResult() {
 }
 
 async function init() {
+  elements.copyButton.disabled = true;
+
   const stored = await chrome.storage.session.get(SESSION_RESULT_KEY);
   const payload = stored[SESSION_RESULT_KEY];
 
   if (!payload) {
     elements.resultText.textContent = "No translation result is available.";
-    elements.copyButton.disabled = true;
     return;
   }
 
   elements.sourceText.value = payload.sourceText || "";
   elements.resultText.textContent = getResultText(payload);
 
-  if (payload.status === "success" && !getTranslationText(payload)) {
-    elements.copyButton.disabled = true;
-    setMessage("No translation text was returned.", "error");
+  if (payload.status === "success") {
+    if (!getTranslationText(payload)) {
+      setMessage("No translation text was returned.", "error");
+      return;
+    }
+
+    elements.copyButton.disabled = false;
     return;
   }
 
   if (payload.status === "error") {
     const serviceUrl = payload.serviceUrl || DEFAULT_SERVICE_URL;
-    elements.copyButton.disabled = true;
     setMessage(`Check the local service: ${serviceUrl}`, "error");
   }
 }
