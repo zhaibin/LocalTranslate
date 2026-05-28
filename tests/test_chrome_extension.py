@@ -61,6 +61,15 @@ def test_expected_extension_files_exist():
         assert (EXTENSION_DIR / relative_path).is_file(), relative_path
 
 
+def test_readme_documents_chrome_extension_usage():
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "Chrome Extension" in readme
+    assert "chrome_extension/" in readme
+    assert "Load unpacked" in readme
+    assert "http://127.0.0.1:8000" in readme
+
+
 def test_content_script_does_not_call_local_api_directly():
     content = (EXTENSION_DIR / "content_script.js").read_text(encoding="utf-8")
 
