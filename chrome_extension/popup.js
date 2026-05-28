@@ -70,19 +70,42 @@ async function loadSettings() {
 }
 
 async function loadLanguages() {
-  const response = await chrome.runtime.sendMessage({ type: "LOCAL_TRANSLATE_LANGUAGES" });
+  try {
+    const response = await chrome.runtime.sendMessage({ type: "LOCAL_TRANSLATE_LANGUAGES" });
 
-  if (!response?.ok) {
+    if (!response?.ok) {
+      throw new Error(response?.error || "Could not load languages.");
+    }
+
+    renderLanguages(toLanguageList(response.result));
+  } catch (error) {
     renderLanguages(FALLBACK_LANGUAGES);
-    throw new Error(response?.error || "Could not load languages.");
+    throw new Error(error.message || "Could not load languages.");
   }
-
-  renderLanguages(toLanguageList(response.result));
 }
 
 function setTranslateLoading(isLoading) {
   elements.translateButton.disabled = isLoading;
   elements.translateButton.textContent = isLoading ? "Translating..." : "Translate";
+}
+
+function getTranslationText(result) {
+  const candidates = [
+    result?.translation,
+    result?.translated_text,
+    result?.text,
+    result?.translation?.translation ||
+      result?.translation?.translated_text ||
+      result?.translation?.text,
+    result?.raw?.translation,
+    result?.raw?.translation?.translation ||
+      result?.raw?.translation?.translated_text ||
+      result?.raw?.translation?.text,
+    result?.raw?.translated_text,
+    result?.raw?.text,
+  ];
+
+  return candidates.find((value) => typeof value === "string" && value) || "";
 }
 
 async function translate() {
@@ -108,7 +131,7 @@ async function translate() {
       throw new Error(response?.error || "Translation failed.");
     }
 
-    const translation = response.result?.translation || "";
+    const translation = getTranslationText(response.result);
     elements.resultText.value = translation;
 
     if (!translation) {
