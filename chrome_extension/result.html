@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Local Translate Result</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <h1>Local Translate</h1>
+      <section>
+        <label>
+          Selected text
+          <textarea id="sourceText" readonly></textarea>
+        </label>
+        <label>
+          Result
+          <div id="resultText" class="result" role="status"></div>
+        </label>
+      </section>
+      <div class="actions">
+        <button id="copyButton" type="button">Copy</button>
+        <button id="closeButton" type="button">Close</button>
+      </div>
+      <p id="message" class="message"></p>
+    </main>
+    <script src="result.js" defer></script>
+  </body>
+</html>
