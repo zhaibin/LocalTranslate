@@ -82,6 +82,136 @@ scripts/uninstall_macos.sh --remove-venv
 
 The uninstaller keeps Ollama and downloaded models by default.
 
+## Linux One-Command Install
+
+Prerequisites:
+
+- Linux with `bash`
+- Python 3.11+
+- Ollama
+
+If Ollama is not installed, the installer can prepare it with `--install-ollama`.
+That option uses Ollama's official Linux installer.
+
+Default CLI install from the project checkout:
+
+```bash
+scripts/install_linux.sh
+```
+
+Install and prepare Ollama plus the default model:
+
+```bash
+scripts/install_linux.sh --install-ollama
+```
+
+Install the HTTP API as a per-user systemd service:
+
+```bash
+scripts/install_linux.sh --install-service
+```
+
+Prepare Ollama/model and install the user service in one command:
+
+```bash
+scripts/install_linux.sh --install-ollama --install-service
+```
+
+After installing the service, check health at:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+Manage the service with:
+
+```bash
+systemctl --user status translate-service.service
+systemctl --user restart translate-service.service
+journalctl --user -u translate-service.service
+```
+
+Uninstall the user service with:
+
+```bash
+scripts/uninstall_linux.sh
+```
+
+To also remove the project virtual environment:
+
+```bash
+scripts/uninstall_linux.sh --remove-venv
+```
+
+The uninstaller keeps Ollama and downloaded models by default.
+
+## Windows PowerShell Install
+
+Prerequisites:
+
+- Windows PowerShell or PowerShell 7+
+- Python 3.11+
+- Ollama
+
+If Ollama is not installed, the installer can prepare it with `-InstallOllama`.
+That option requires `winget`; it does not install `winget` for you.
+
+Default CLI install from the project checkout:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1
+```
+
+Install and prepare Ollama plus the default model:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1 -InstallOllama
+```
+
+Install the HTTP API as a per-user scheduled task:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1 -InstallService
+```
+
+If scheduled task registration returns `Access is denied`, rerun the command
+from an interactive PowerShell session in the Windows VM, using Run as
+Administrator if your Windows policy requires it.
+
+Prepare Ollama/model and install the user scheduled task in one command:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\install_windows.ps1 -InstallOllama -InstallService
+```
+
+After installing the service, check health at:
+
+```powershell
+curl http://127.0.0.1:8000/health
+```
+
+Manage the scheduled task with:
+
+```powershell
+Get-ScheduledTask -TaskName TranslateService
+Start-ScheduledTask -TaskName TranslateService
+Stop-ScheduledTask -TaskName TranslateService
+```
+
+Uninstall the scheduled task with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\uninstall_windows.ps1
+```
+
+To also remove the project virtual environment:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\uninstall_windows.ps1 -RemoveVenv
+```
+
+The uninstaller keeps Ollama and downloaded models by default.
+
 ## Configuration
 
 Copy `.env.example` to `.env` and adjust values if your Ollama host, model, or default
@@ -163,5 +293,13 @@ Available MCP tools:
 ```bash
 pytest -q
 ruff check .
+bash -n scripts/install_macos.sh
+bash -n scripts/uninstall_macos.sh
+bash -n scripts/install_linux.sh
+bash -n scripts/uninstall_linux.sh
 python -c 'from translate_service.prompt import build_prompt; p=build_prompt(source_name="English",source_code="en",target_name="Chinese",target_code="zh",text="Hello"); print(repr(p[-12:]))'
 ```
+
+Run Windows installer checks inside the local Parallels Desktop Windows VM.
+Use a VM-internal checkout or copy for install tests so Windows `.venv` files do
+not overwrite the macOS project virtual environment through a shared folder.

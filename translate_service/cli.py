@@ -1,5 +1,6 @@
 import asyncio
 import json
+import sys
 
 import typer
 
@@ -10,6 +11,16 @@ from translate_service.ollama_client import OllamaClient
 from translate_service.service import TranslationService
 
 app = typer.Typer(no_args_is_help=True)
+
+
+def _encode_for_stdout(value: str, encoding: str | None) -> str:
+    if not encoding:
+        return value
+    return value.encode(encoding, errors="backslashreplace").decode(encoding)
+
+
+def _echo(value: str) -> None:
+    typer.echo(_encode_for_stdout(value, sys.stdout.encoding))
 
 
 def _service() -> TranslationService:
@@ -29,7 +40,7 @@ def text(
             source_lang=source_lang,
             target_lang=target_lang,
         )
-        typer.echo(result["translation"])
+        _echo(result["translation"])
 
     try:
         asyncio.run(run())
@@ -39,7 +50,7 @@ def text(
 
 @app.command()
 def languages():
-    typer.echo(json.dumps({"languages": list_languages()}, ensure_ascii=False, indent=2))
+    _echo(json.dumps({"languages": list_languages()}, ensure_ascii=False, indent=2))
 
 
 @app.command()
