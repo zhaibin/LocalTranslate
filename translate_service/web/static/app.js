@@ -39,9 +39,20 @@ function filteredLanguages(query) {
   });
 }
 
+function ensureLanguageOption(languages, code) {
+  if (!code || languages.some((language) => language.code === code)) {
+    return languages;
+  }
+  const language = state.languages.find((candidate) => candidate.code === code);
+  if (!language) {
+    return languages;
+  }
+  return [language, ...languages];
+}
+
 function renderLanguageOptions(select, query, preferredCode) {
   const current = preferredCode || select.value;
-  const languages = filteredLanguages(query);
+  const languages = ensureLanguageOption(filteredLanguages(query), current);
   select.replaceChildren(
     ...languages.map((language) => {
       const option = document.createElement("option");
@@ -92,7 +103,10 @@ async function loadHealth() {
 
 function swapLanguages() {
   const source = elements.sourceLang.value;
-  elements.sourceLang.value = elements.targetLang.value;
+  const target = elements.targetLang.value;
+  renderLanguageOptions(elements.sourceLang, elements.sourceSearch.value, target);
+  renderLanguageOptions(elements.targetLang, elements.targetSearch.value, source);
+  elements.sourceLang.value = target;
   elements.targetLang.value = source;
   showMessage("Languages swapped.");
 }

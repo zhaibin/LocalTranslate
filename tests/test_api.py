@@ -72,6 +72,7 @@ def test_web_root_returns_translation_workbench_html():
         'id="copyButton"',
         'id="resultText"',
         'id="healthStatus"',
+        'id="refreshHealth"',
         'id="message"',
     ]:
         assert expected in response.text
@@ -92,6 +93,8 @@ def test_web_static_assets_are_served():
         "swapLanguages",
         "copyResult",
         "renderLanguageOptions",
+        "ensureLanguageOption",
+        "renderLanguageOptions(elements.sourceLang",
         "showMessage",
     ]:
         assert expected in js_response.text
