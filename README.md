@@ -102,6 +102,25 @@ translate languages
 translate serve --host 127.0.0.1 --port 8000
 ```
 
+## Local Web UI
+
+Start the local HTTP server:
+
+```bash
+translate serve --host 127.0.0.1 --port 8000
+```
+
+Then open the browser workbench at:
+
+```text
+http://127.0.0.1:8000/
+```
+
+The page uses the same local API endpoints as other clients: `/translate` for
+translation, `/languages` for supported language choices, and `/health` for
+service status. If the macOS `--install-service` option is installed, the
+LaunchAgent serves the same web UI at `http://127.0.0.1:8000/`.
+
 ## HTTP
 
 Start the API server:

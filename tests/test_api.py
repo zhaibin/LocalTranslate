@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 from translate_service.api.app import create_app
@@ -101,3 +103,11 @@ def test_web_static_assets_are_served():
     assert css_response.status_code == 200
     assert "text/css" in css_response.headers["content-type"]
     assert ".workbench" in css_response.text
+
+
+def test_readme_documents_local_web_ui():
+    readme = Path("README.md").read_text()
+
+    assert "Local Web UI" in readme
+    assert "http://127.0.0.1:8000/" in readme
+    assert "translate serve" in readme
