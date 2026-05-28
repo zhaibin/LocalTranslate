@@ -10,6 +10,18 @@ def read_manifest():
     return json.loads((EXTENSION_DIR / "manifest.json").read_text(encoding="utf-8"))
 
 
+def read_readme_section(heading):
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    marker = f"## {heading}"
+    start = readme.index(marker)
+    end = readme.find("\n## ", start + len(marker))
+
+    if end == -1:
+        return readme[start:]
+
+    return readme[start:end]
+
+
 def test_manifest_v3_contract():
     manifest = read_manifest()
 
@@ -62,12 +74,14 @@ def test_expected_extension_files_exist():
 
 
 def test_readme_documents_chrome_extension_usage():
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    section = read_readme_section("Chrome Extension")
 
-    assert "Chrome Extension" in readme
-    assert "chrome_extension/" in readme
-    assert "Load unpacked" in readme
-    assert "http://127.0.0.1:8000" in readme
+    assert "Chrome Extension" in section
+    assert "chrome_extension/" in section
+    assert "Load unpacked" in section
+    assert "http://127.0.0.1:8000" in section
+    assert "does not save" in section
+    assert "translation history" in section
 
 
 def test_content_script_does_not_call_local_api_directly():
