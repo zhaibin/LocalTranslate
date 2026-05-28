@@ -8,8 +8,44 @@
   </head>
   <body>
     <main id="app" class="workbench">
-      <h1>Local Translate</h1>
-      <p>Loading translation workbench...</p>
+      <header class="topbar">
+        <div>
+          <h1>Local Translate</h1>
+          <p id="healthStatus" class="status">Checking service...</p>
+        </div>
+        <button id="refreshHealth" class="icon-button" type="button" title="Refresh status">Refresh</button>
+      </header>
+
+      <section class="language-bar" aria-label="Language controls">
+        <label>
+          <span>From</span>
+          <input id="sourceSearch" type="search" placeholder="Search source language" autocomplete="off" />
+          <select id="sourceLang"></select>
+        </label>
+        <button id="swapLanguages" class="swap-button" type="button" title="Swap languages">&harr;</button>
+        <label>
+          <span>To</span>
+          <input id="targetSearch" type="search" placeholder="Search target language" autocomplete="off" />
+          <select id="targetLang"></select>
+        </label>
+      </section>
+
+      <section class="panels">
+        <label class="panel">
+          <span>Source text</span>
+          <textarea id="sourceText" rows="14" placeholder="Enter text to translate"></textarea>
+        </label>
+        <label class="panel">
+          <span>Translation</span>
+          <textarea id="resultText" rows="14" readonly placeholder="Translation appears here"></textarea>
+        </label>
+      </section>
+
+      <section class="actions" aria-label="Translation actions">
+        <button id="translateButton" type="button">Translate</button>
+        <button id="copyButton" type="button">Copy result</button>
+        <p id="message" role="status" aria-live="polite"></p>
+      </section>
     </main>
     <script src="/static/app.js" defer></script>
   </body>

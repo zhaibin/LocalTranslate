@@ -61,6 +61,20 @@ def test_web_root_returns_translation_workbench_html():
     assert '<main id="app"' in response.text
     assert 'src="/static/app.js"' in response.text
     assert 'href="/static/styles.css"' in response.text
+    for expected in [
+        'id="sourceText"',
+        'id="sourceSearch"',
+        'id="sourceLang"',
+        'id="targetSearch"',
+        'id="targetLang"',
+        'id="swapLanguages"',
+        'id="translateButton"',
+        'id="copyButton"',
+        'id="resultText"',
+        'id="healthStatus"',
+        'id="message"',
+    ]:
+        assert expected in response.text
 
 
 def test_web_static_assets_are_served():
@@ -72,6 +86,15 @@ def test_web_static_assets_are_served():
     assert js_response.status_code == 200
     assert "application/javascript" in js_response.headers["content-type"]
     assert "async function translateText" in js_response.text
+    for expected in [
+        "loadLanguages",
+        "loadHealth",
+        "swapLanguages",
+        "copyResult",
+        "renderLanguageOptions",
+        "showMessage",
+    ]:
+        assert expected in js_response.text
     assert css_response.status_code == 200
     assert "text/css" in css_response.headers["content-type"]
     assert ".workbench" in css_response.text
