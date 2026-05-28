@@ -12,6 +12,76 @@ Local translation service for Ollama and `translategemma:latest`.
 ollama pull translategemma:latest
 ```
 
+## macOS One-Command Install
+
+Prerequisites:
+
+- macOS
+- Python 3.10+
+- Ollama
+
+If Ollama is not installed, the installer can prepare it with `--install-ollama`.
+That option requires Homebrew; it does not install Homebrew for you.
+
+Default CLI install from the project checkout:
+
+```bash
+scripts/install_macos.sh
+```
+
+Install and prepare Ollama plus the default model:
+
+```bash
+scripts/install_macos.sh --install-ollama
+```
+
+Install the HTTP API as a per-user LaunchAgent service:
+
+```bash
+scripts/install_macos.sh --install-service
+```
+
+Prepare Ollama/model and install the user service in one command:
+
+```bash
+scripts/install_macos.sh --install-ollama --install-service
+```
+
+After installing the service, check health at:
+
+```bash
+curl http://127.0.0.1:8000/health
+```
+
+Manage the service with:
+
+```bash
+launchctl print gui/$UID/com.local.translate-service
+launchctl kickstart -k gui/$UID/com.local.translate-service
+```
+
+Service logs are written to:
+
+```text
+~/Library/Logs/translate-service/stdout.log
+~/Library/Logs/translate-service/stderr.log
+~/Library/Logs/translate-service/ollama.log
+```
+
+Uninstall the user service with:
+
+```bash
+scripts/uninstall_macos.sh
+```
+
+To also remove the project virtual environment:
+
+```bash
+scripts/uninstall_macos.sh --remove-venv
+```
+
+The uninstaller keeps Ollama and downloaded models by default.
+
 ## Configuration
 
 Copy `.env.example` to `.env` and adjust values if your Ollama host, model, or default

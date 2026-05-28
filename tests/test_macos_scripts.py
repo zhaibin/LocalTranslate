@@ -3,12 +3,17 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+README = ROOT / "README.md"
 INSTALL_SCRIPT = ROOT / "scripts" / "install_macos.sh"
 UNINSTALL_SCRIPT = ROOT / "scripts" / "uninstall_macos.sh"
 
 
 def read_script(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def read_readme() -> str:
+    return README.read_text(encoding="utf-8")
 
 
 def extract_function(script: str, name: str) -> str:
@@ -338,3 +343,44 @@ def test_uninstall_script_is_conservative_about_external_state():
 
     assert "ollama rm" not in script
     assert "sudo" not in script
+
+
+def test_readme_documents_macos_one_command_install_section():
+    readme = read_readme()
+
+    assert "## macOS One-Command Install" in readme
+    assert "macOS" in readme
+    assert "Python 3.10+" in readme
+    assert "Ollama" in readme
+    assert "--install-ollama" in readme
+    assert "Homebrew" in readme
+
+
+def test_readme_documents_macos_install_commands_and_health_check():
+    readme = read_readme()
+
+    for expected in [
+        "scripts/install_macos.sh",
+        "scripts/install_macos.sh --install-ollama",
+        "scripts/install_macos.sh --install-service",
+        "scripts/install_macos.sh --install-ollama --install-service",
+        "http://127.0.0.1:8000/health",
+    ]:
+        assert expected in readme
+
+
+def test_readme_documents_macos_service_management_logs_and_uninstall():
+    readme = read_readme()
+
+    for expected in [
+        "launchctl print gui/$UID/com.local.translate-service",
+        "launchctl kickstart -k gui/$UID/com.local.translate-service",
+        "~/Library/Logs/translate-service/stdout.log",
+        "~/Library/Logs/translate-service/stderr.log",
+        "~/Library/Logs/translate-service/ollama.log",
+        "scripts/uninstall_macos.sh",
+        "scripts/uninstall_macos.sh --remove-venv",
+    ]:
+        assert expected in readme
+
+    assert "keeps Ollama and downloaded models" in readme
