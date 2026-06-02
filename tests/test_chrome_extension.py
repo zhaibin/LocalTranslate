@@ -140,6 +140,7 @@ def test_extension_service_url_validation_matches_helper_restrictions():
         assert "Service URL must not include credentials." in source
         assert "Service URL must not include a path." in source
         assert "Service URL must not include query or fragment." in source
+        assert "Service URL must include a valid port." in source
 
 
 def test_options_exposes_helper_lifecycle_controls():

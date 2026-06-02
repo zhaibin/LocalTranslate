@@ -62,6 +62,10 @@ function validateServiceUrl(value) {
     throw new Error("Service URL must not include query or fragment.");
   }
 
+  if (!url.port || Number(url.port) < 1) {
+    throw new Error("Service URL must include a valid port.");
+  }
+
   return url.toString().replace(/\/+$/, "");
 }
 

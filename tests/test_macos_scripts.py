@@ -135,7 +135,9 @@ def test_install_script_skips_ollama_preparation_for_helper_only_registration():
     assert '[ "$INSTALL_CHROME_HELPER" -eq 1 ]' in script
     assert '[ "$INSTALL_SERVICE" -eq 0 ]' in script
     assert '[ "$INSTALL_OLLAMA" -eq 0 ]' in script
-    assert '[ "$PULL_MODEL_EXPLICIT" -eq 0 ]' in script
+    assert "PULL_MODEL_REQUESTED=0" in script
+    assert "--no-pull-model) PULL_MODEL=0; shift ;;" in script
+    assert '[ "$PULL_MODEL_REQUESTED" -eq 0 ]' in script
     assert "PREPARE_OLLAMA=0" in script
     assert "Skipping Ollama preparation for Chrome helper registration" in script
 
