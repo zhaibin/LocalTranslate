@@ -69,7 +69,7 @@ def normalize_service_url(value: object) -> str:
     try:
         port = parsed.port
     except ValueError as exc:
-        raise HelperError(f"service_url has an invalid port: {exc}") from exc
+        raise HelperError("Service URL must include a valid port.") from exc
     if port is None:
         raise HelperError("service_url must include a port")
     if parsed.path not in {"", "/"}:
