@@ -65,14 +65,19 @@ def normalize_service_url(value: object) -> str:
         raise HelperError("service_url must point to localhost")
     if parsed.username or parsed.password:
         raise HelperError("service_url must not include credentials")
-    if parsed.port is None:
+
+    try:
+        port = parsed.port
+    except ValueError as exc:
+        raise HelperError(f"service_url has an invalid port: {exc}") from exc
+    if port is None:
         raise HelperError("service_url must include a port")
     if parsed.path not in {"", "/"}:
         raise HelperError("service_url must not include a path")
     if parsed.params or parsed.query or parsed.fragment:
         raise HelperError("service_url must not include params, query, or fragment")
 
-    return f"http://{parsed.hostname}:{parsed.port}"
+    return f"http://{parsed.hostname}:{port}"
 
 
 @dataclass
@@ -107,7 +112,17 @@ def default_project_root() -> Path:
     return Path(__file__).resolve().parents[1]
 
 
-def main() -> None:
+def main(input_stream: BinaryIO | None = None, output_stream: BinaryIO | None = None) -> None:
+    if input_stream is None:
+        input_stream = sys.stdin.buffer
+    if output_stream is None:
+        output_stream = sys.stdout.buffer
+
     manager = HelperManager(project_root=default_project_root())
-    response = manager.handle_message(read_message(sys.stdin.buffer))
-    write_message(sys.stdout.buffer, response)
+    try:
+        message = read_message(input_stream)
+    except HelperError as exc:
+        response = {"ok": False, "error": str(exc)}
+    else:
+        response = manager.handle_message(message)
+    write_message(output_stream, response)

@@ -12,6 +12,7 @@ from translate_service.chrome_helper import (
     MAX_MESSAGE_BYTES,
     HelperError,
     HelperManager,
+    main,
     normalize_service_url,
     read_message,
     write_message,
@@ -66,6 +67,18 @@ def test_normalize_service_url_rejects_unsupported_urls(value: str) -> None:
         normalize_service_url(value)
 
 
+@pytest.mark.parametrize(
+    "value",
+    [
+        "http://127.0.0.1:abc",
+        "http://127.0.0.1:99999",
+    ],
+)
+def test_normalize_service_url_rejects_invalid_ports_with_helper_error(value: str) -> None:
+    with pytest.raises(HelperError):
+        normalize_service_url(value)
+
+
 def test_helper_manager_ping_returns_pong(tmp_path: Path) -> None:
     manager = HelperManager(project_root=ROOT, state_path=tmp_path / "state.json", log_dir=tmp_path)
 
@@ -79,6 +92,18 @@ def test_helper_manager_unknown_message_returns_error(tmp_path: Path) -> None:
 
     assert response["ok"] is False
     assert "Unsupported helper message" in str(response["error"])
+
+
+def test_main_returns_framed_error_for_malformed_native_input() -> None:
+    input_stream = io.BytesIO(struct.pack("<I", 1) + b"{")
+    output_stream = io.BytesIO()
+
+    main(input_stream=input_stream, output_stream=output_stream)
+
+    output_stream.seek(0)
+    response = read_message(output_stream)
+    assert response["ok"] is False
+    assert "Invalid native messaging JSON" in str(response["error"])
 
 
 def test_pyproject_declares_chrome_helper_console_script() -> None:
