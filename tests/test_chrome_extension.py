@@ -130,3 +130,18 @@ def test_background_preserves_zero_idle_timeout_for_native_helper():
 
     assert "settings.idleTimeoutMinutes || 15" not in background
     assert "settings.idleTimeoutMinutes ?? DEFAULT_IDLE_TIMEOUT_MINUTES" in background
+
+
+def test_options_exposes_helper_lifecycle_controls():
+    html = (EXTENSION_DIR / "options.html").read_text(encoding="utf-8")
+    js = (EXTENSION_DIR / "options.js").read_text(encoding="utf-8")
+
+    assert 'id="testHelperButton"' in html
+    assert 'id="helperStatus"' in html
+    assert 'id="idleTimeoutMinutes"' in html
+    assert 'id="stopOllamaPolicy"' in html
+
+    assert "LOCAL_TRANSLATE_TEST_HELPER" in js
+    assert "idleTimeoutMinutes" in js
+    assert "stopOllamaPolicy" in js
+    assert "if-started-by-helper" in js

@@ -2,6 +2,8 @@ const DEFAULT_SETTINGS = {
   serviceUrl: "http://127.0.0.1:8000",
   sourceLang: "en",
   targetLang: "zh",
+  idleTimeoutMinutes: 15,
+  stopOllamaPolicy: "if-started-by-helper",
 };
 
 const FALLBACK_LANGUAGES = [
@@ -15,16 +17,25 @@ const elements = {
   serviceUrl: document.querySelector("#serviceUrl"),
   sourceLang: document.querySelector("#sourceLang"),
   targetLang: document.querySelector("#targetLang"),
+  idleTimeoutMinutes: document.querySelector("#idleTimeoutMinutes"),
+  stopOllamaPolicy: document.querySelector("#stopOllamaPolicy"),
   saveButton: document.querySelector("#saveButton"),
   resetButton: document.querySelector("#resetButton"),
   testButton: document.querySelector("#testButton"),
+  testHelperButton: document.querySelector("#testHelperButton"),
   reloadLanguagesButton: document.querySelector("#reloadLanguagesButton"),
   message: document.querySelector("#message"),
+  helperStatus: document.querySelector("#helperStatus"),
 };
 
 function setMessage(text, type = "") {
   elements.message.textContent = text;
   elements.message.className = `message ${type}`.trim();
+}
+
+function setHelperStatus(text, type = "") {
+  elements.helperStatus.textContent = text;
+  elements.helperStatus.className = `message ${type}`.trim();
 }
 
 function validateServiceUrl(value) {
@@ -40,6 +51,33 @@ function validateServiceUrl(value) {
   }
 
   return url.toString().replace(/\/+$/, "");
+}
+
+function normalizeIdleTimeout(value) {
+  const idleTimeoutMinutes =
+    value === "" || value === undefined || value === null
+      ? DEFAULT_SETTINGS.idleTimeoutMinutes
+      : Number.parseInt(value, 10);
+
+  if (!Number.isFinite(idleTimeoutMinutes) || idleTimeoutMinutes < 0) {
+    throw new Error("Idle timeout must be zero or greater.");
+  }
+
+  return idleTimeoutMinutes;
+}
+
+function normalizeStopPolicy(value) {
+  const allowedPolicies = new Set(["never", "if-started-by-helper", "always"]);
+
+  if (!value) {
+    return DEFAULT_SETTINGS.stopOllamaPolicy;
+  }
+
+  if (!allowedPolicies.has(value)) {
+    throw new Error("Choose a valid Ollama stop policy.");
+  }
+
+  return value;
 }
 
 function toLanguageList(result) {
@@ -106,6 +144,10 @@ async function fetchJson(serviceUrl, path) {
   return response.json();
 }
 
+function sendMessage(message) {
+  return chrome.runtime.sendMessage(message);
+}
+
 async function loadSettings() {
   const stored = await chrome.storage.local.get(DEFAULT_SETTINGS);
   settings = {
@@ -113,6 +155,8 @@ async function loadSettings() {
     ...stored,
   };
   elements.serviceUrl.value = settings.serviceUrl;
+  elements.idleTimeoutMinutes.value = normalizeIdleTimeout(settings.idleTimeoutMinutes);
+  elements.stopOllamaPolicy.value = normalizeStopPolicy(settings.stopOllamaPolicy);
 }
 
 async function loadLanguages() {
@@ -128,14 +172,20 @@ function renderFallbackLanguages() {
 async function saveSettings() {
   try {
     const serviceUrl = validateServiceUrl(elements.serviceUrl.value);
+    const idleTimeoutMinutes = normalizeIdleTimeout(elements.idleTimeoutMinutes.value);
+    const stopOllamaPolicy = normalizeStopPolicy(elements.stopOllamaPolicy.value);
     settings = {
       serviceUrl,
       sourceLang: elements.sourceLang.value,
       targetLang: elements.targetLang.value,
+      idleTimeoutMinutes,
+      stopOllamaPolicy,
     };
 
     await chrome.storage.local.set(settings);
     elements.serviceUrl.value = serviceUrl;
+    elements.idleTimeoutMinutes.value = idleTimeoutMinutes;
+    elements.stopOllamaPolicy.value = stopOllamaPolicy;
     setMessage("Options saved.", "success");
   } catch (error) {
     setMessage(error.message || "Options could not be saved.", "error");
@@ -146,6 +196,8 @@ async function resetSettings() {
   settings = { ...DEFAULT_SETTINGS };
   await chrome.storage.local.set(settings);
   elements.serviceUrl.value = settings.serviceUrl;
+  elements.idleTimeoutMinutes.value = settings.idleTimeoutMinutes;
+  elements.stopOllamaPolicy.value = settings.stopOllamaPolicy;
 
   try {
     await loadLanguages();
@@ -183,10 +235,25 @@ async function reloadLanguages() {
   }
 }
 
+async function testHelper() {
+  try {
+    const response = await sendMessage({ type: "LOCAL_TRANSLATE_TEST_HELPER" });
+
+    if (!response?.ok) {
+      throw new Error(response?.error || "Chrome helper did not respond.");
+    }
+
+    setHelperStatus("Chrome helper is available.", "success");
+  } catch (error) {
+    setHelperStatus(`Chrome helper check failed: ${error.message}`, "error");
+  }
+}
+
 async function init() {
   elements.saveButton.addEventListener("click", saveSettings);
   elements.resetButton.addEventListener("click", resetSettings);
   elements.testButton.addEventListener("click", testConnection);
+  elements.testHelperButton.addEventListener("click", testHelper);
   elements.reloadLanguagesButton.addEventListener("click", reloadLanguages);
 
   await loadSettings();

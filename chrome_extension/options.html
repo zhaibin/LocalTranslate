@@ -21,13 +21,27 @@
         Default target language
         <select id="targetLang"></select>
       </label>
+      <label>
+        Idle timeout minutes
+        <input id="idleTimeoutMinutes" type="number" min="0" step="1" />
+      </label>
+      <label>
+        Stop Ollama
+        <select id="stopOllamaPolicy">
+          <option value="never">Never</option>
+          <option value="if-started-by-helper">If started by helper</option>
+          <option value="always">Always</option>
+        </select>
+      </label>
       <div class="actions">
         <button id="saveButton" class="primary" type="button">Save</button>
         <button id="resetButton" type="button">Reset</button>
         <button id="testButton" type="button">Test connection</button>
+        <button id="testHelperButton" type="button">Test helper</button>
         <button id="reloadLanguagesButton" type="button">Reload languages</button>
       </div>
       <p id="message" class="message" role="status" aria-live="polite"></p>
+      <p id="helperStatus" class="message" role="status" aria-live="polite"></p>
     </main>
     <script src="options.js" defer></script>
   </body>

@@ -257,6 +257,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message?.type === "LOCAL_TRANSLATE_TEST_HELPER") {
+    sendNativeMessage({ type: "ping" })
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   if (message?.type === "LOCAL_TRANSLATE_TRANSLATE") {
     getSettings()
       .then((settings) => {
