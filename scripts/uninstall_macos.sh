@@ -39,6 +39,7 @@ done
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
 PLIST_PATH="$HOME/Library/LaunchAgents/com.local.translate-service.plist"
+NATIVE_HOST_PATH="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts/com.local.translate.helper.json"
 
 log "Unloading $LABEL LaunchAgent if it is loaded."
 launchctl bootout "gui/$UID" "$PLIST_PATH" >/dev/null 2>&1 || true
@@ -48,6 +49,13 @@ if [ -f "$PLIST_PATH" ]; then
   log "Removed $PLIST_PATH"
 else
   log "No LaunchAgent plist found at $PLIST_PATH"
+fi
+
+if [ -f "$NATIVE_HOST_PATH" ]; then
+  rm -f "$NATIVE_HOST_PATH"
+  log "Removed Chrome Native Messaging helper manifest at $NATIVE_HOST_PATH"
+else
+  log "No Chrome Native Messaging helper manifest found at $NATIVE_HOST_PATH"
 fi
 
 if [ "$REMOVE_VENV" -eq 1 ]; then

@@ -34,6 +34,8 @@ def test_install_script_exposes_expected_options():
 
     for option in [
         "--install-service",
+        "--install-chrome-helper",
+        "--chrome-extension-id",
         "--install-ollama",
         "--pull-model",
         "--no-pull-model",
@@ -54,6 +56,32 @@ def test_install_script_uses_project_local_virtualenv_and_editable_install():
     assert 'VENV_DIR="$PROJECT_ROOT/.venv"' in script
     assert '"$PYTHON_BIN" -m venv "$VENV_DIR"' in script
     assert '"$VENV_DIR/bin/python" -m pip install -e "$PROJECT_ROOT"' in script
+
+
+def test_install_script_exposes_chrome_native_messaging_helper_manifest_settings():
+    script = read_script(INSTALL_SCRIPT)
+
+    assert "NativeMessagingHosts" in script
+    assert "com.local.translate.helper.json" in script
+    assert "local-translate-chrome-helper" in script
+
+
+def test_install_script_validates_chrome_extension_id_before_helper_install():
+    script = read_script(INSTALL_SCRIPT)
+
+    assert "validate_chrome_extension_id()" in script
+    assert "Chrome extension ID must contain 32 lowercase letters" in script
+    assert '[ "$INSTALL_CHROME_HELPER" -eq 1 ]' in script
+    assert 'validate_chrome_extension_id "$CHROME_EXTENSION_ID"' in script
+
+
+def test_install_script_generates_chrome_native_messaging_manifest_with_json():
+    script = read_script(INSTALL_SCRIPT)
+
+    assert "import json" in script
+    assert '"allowed_origins"' in script
+    assert '"chrome-extension://" + extension_id + "/"' in script
+    assert '"type": "stdio"' in script
 
 
 def test_install_script_writes_env_and_launchagent_paths():
@@ -337,6 +365,14 @@ def test_uninstall_script_unloads_user_launchagent_and_removes_plist():
     assert "com.local.translate-service.plist" in script
     assert "Library/LaunchAgents" in script
     assert 'rm -f "$PLIST_PATH"' in script
+
+
+def test_uninstall_script_removes_chrome_native_messaging_helper_manifest():
+    script = read_script(UNINSTALL_SCRIPT)
+
+    assert "com.local.translate.helper.json" in script
+    assert "NativeMessagingHosts" in script
+    assert "Removed Chrome Native Messaging helper manifest" in script
 
 
 def test_uninstall_script_can_optionally_remove_project_virtualenv():

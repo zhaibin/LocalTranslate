@@ -4,6 +4,11 @@ set -euo pipefail
 LABEL="com.local.translate-service"
 DEFAULT_OLLAMA_BASE_URL="http://127.0.0.1:11434"
 INSTALL_SERVICE=0
+INSTALL_CHROME_HELPER=0
+CHROME_EXTENSION_ID=""
+NATIVE_HOST_NAME="com.local.translate.helper"
+NATIVE_HOST_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessagingHosts"
+NATIVE_HOST_PATH="$NATIVE_HOST_DIR/$NATIVE_HOST_NAME.json"
 INSTALL_OLLAMA=0
 PULL_MODEL=1
 HOST="127.0.0.1"
@@ -21,6 +26,8 @@ Usage: scripts/install_macos.sh [options]
 
 Options:
   --install-service       Install and start the user LaunchAgent HTTP service.
+  --install-chrome-helper      Install Chrome Native Messaging helper manifest.
+  --chrome-extension-id ID     Chrome extension ID allowed to call the helper.
   --install-ollama        If Ollama is missing, try to install it with Homebrew.
   --pull-model            Pull/update the configured Ollama model. Default.
   --no-pull-model         Skip model pull.
@@ -43,9 +50,13 @@ die() {
   exit 1
 }
 
+[ "$NATIVE_HOST_PATH" = "$NATIVE_HOST_DIR/com.local.translate.helper.json" ] || die "Chrome Native Messaging manifest path is inconsistent."
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --install-service) INSTALL_SERVICE=1; shift ;;
+    --install-chrome-helper) INSTALL_CHROME_HELPER=1; shift ;;
+    --chrome-extension-id) CHROME_EXTENSION_ID="${2:-}"; [ -n "$CHROME_EXTENSION_ID" ] || die "--chrome-extension-id requires a value"; shift 2 ;;
     --install-ollama) INSTALL_OLLAMA=1; shift ;;
     --pull-model) PULL_MODEL=1; shift ;;
     --no-pull-model) PULL_MODEL=0; shift ;;
@@ -97,6 +108,13 @@ validate_lang_code() {
       die "$name must contain only BCP47 language-code characters: A-Z, a-z, 0-9, or '-'."
       ;;
   esac
+}
+
+validate_chrome_extension_id() {
+  extension_id="$1"
+  if ! [[ "$extension_id" =~ ^[a-z]{32}$ ]]; then
+    die "Chrome extension ID must contain 32 lowercase letters."
+  fi
 }
 
 validate_port() {
@@ -192,6 +210,33 @@ log "[3/7] Creating virtual environment"
 log "[4/7] Installing translate-service"
 "$VENV_DIR/bin/python" -m pip install --upgrade pip
 "$VENV_DIR/bin/python" -m pip install -e "$PROJECT_ROOT"
+
+if [ "$INSTALL_CHROME_HELPER" -eq 1 ]; then
+  log "Installing Chrome Native Messaging helper"
+  validate_chrome_extension_id "$CHROME_EXTENSION_ID"
+  HELPER_BIN="$VENV_DIR/bin/local-translate-chrome-helper"
+  [ -x "$HELPER_BIN" ] || die "Chrome Native Messaging helper is not executable at $HELPER_BIN."
+  mkdir -p "$NATIVE_HOST_DIR"
+  "$VENV_DIR/bin/python" - "$NATIVE_HOST_PATH" "$NATIVE_HOST_NAME" "$HELPER_BIN" "$CHROME_EXTENSION_ID" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+manifest_path, host_name, helper_bin, extension_id = sys.argv[1:]
+manifest = {
+    "name": host_name,
+    "description": "Local Translate on-demand service helper",
+    "path": helper_bin,
+    "type": "stdio",
+    "allowed_origins": ["chrome-extension://" + extension_id + "/"],
+}
+
+with Path(manifest_path).open("w", encoding="utf-8") as manifest_file:
+    json.dump(manifest, manifest_file, indent=2)
+    manifest_file.write("\n")
+PY
+  log "Installed Chrome Native Messaging helper manifest at $NATIVE_HOST_PATH"
+fi
 
 log "[5/7] Writing configuration"
 validate_dotenv_token "OLLAMA_BASE_URL" "$OLLAMA_BASE_URL"
