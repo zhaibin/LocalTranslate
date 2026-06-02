@@ -86,6 +86,8 @@ def normalize_service_url(value: object) -> str:
         raise HelperError("Service URL must include a valid port.") from exc
     if port is None:
         raise HelperError("service_url must include a port")
+    if port < 1:
+        raise HelperError("service_url must include a valid port")
     if parsed.path not in {"", "/"}:
         raise HelperError("service_url must not include a path")
     if parsed.params or parsed.query or parsed.fragment:
@@ -189,12 +191,16 @@ class HelperManager:
                 )
         except OSError as exc:
             raise HelperError("Could not start Ollama.") from exc
-        self.write_state(
-            {
-                "ollama_pid": getattr(process, "pid", None),
-                "ollama_started_by_helper": True,
-            }
-        )
+        try:
+            self.write_state(
+                {
+                    "ollama_pid": getattr(process, "pid", None),
+                    "ollama_started_by_helper": True,
+                }
+            )
+        except HelperError:
+            self.terminate_process(process)
+            raise
         return True
 
     def ensure_translate_service(
@@ -243,15 +249,25 @@ class HelperManager:
                 )
         except OSError as exc:
             raise HelperError("Could not start translate service.") from exc
-        self.write_state(
-            {
-                "translate_pid": getattr(process, "pid", None),
-                "ollama_started_by_helper": ollama_started_by_helper,
-                "service_url": service_url,
-                "started_at": datetime.now(UTC).isoformat(),
-            }
-        )
+        try:
+            self.write_state(
+                {
+                    "translate_pid": getattr(process, "pid", None),
+                    "ollama_started_by_helper": ollama_started_by_helper,
+                    "service_url": service_url,
+                    "started_at": datetime.now(UTC).isoformat(),
+                }
+            )
+        except HelperError:
+            self.terminate_process(process)
+            raise
         return True
+
+    def terminate_process(self, process: Any) -> None:
+        try:
+            process.terminate()
+        except OSError:
+            pass
 
     def wait_for_health(self, service_url: str) -> None:
         health_url = f"{service_url}/health"

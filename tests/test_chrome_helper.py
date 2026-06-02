@@ -26,6 +26,10 @@ ROOT = Path(__file__).resolve().parents[1]
 class FakeProcess:
     def __init__(self, pid: int) -> None:
         self.pid = pid
+        self.terminated = False
+
+    def terminate(self) -> None:
+        self.terminated = True
 
 
 class FakePopen:
@@ -35,8 +39,9 @@ class FakePopen:
 
     def __call__(self, args: list[str], **kwargs: object) -> FakeProcess:
         self.next_pid += 1
-        self.calls.append({"args": args, "kwargs": kwargs})
-        return FakeProcess(self.next_pid)
+        process = FakeProcess(self.next_pid)
+        self.calls.append({"args": args, "kwargs": kwargs, "process": process})
+        return process
 
 
 def test_native_messaging_frame_read_write_uses_little_endian_length() -> None:
@@ -78,6 +83,7 @@ def test_normalize_service_url_accepts_local_http_urls(value: str, expected: str
         "http://user:pass@127.0.0.1:8000",
         "http://127.0.0.1:8000/api",
         "http://127.0.0.1",
+        "http://127.0.0.1:0",
     ],
 )
 def test_normalize_service_url_rejects_unsupported_urls(value: str) -> None:
@@ -276,6 +282,41 @@ def test_write_state_wraps_write_failure_with_bounded_error(
 
     with pytest.raises(HelperError, match="^Could not write helper state\\.$"):
         manager.write_state({"ollama_pid": 123})
+
+
+def test_ensure_ollama_terminates_started_process_when_state_write_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    popen = FakePopen()
+
+    def fail_write_text(
+        self: Path,
+        data: str,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> int:
+        raise OSError("raw path and system details")
+
+    monkeypatch.setattr(Path, "write_text", fail_write_text)
+    manager = HelperManager(
+        project_root=ROOT,
+        state_path=tmp_path / "state.json",
+        log_dir=tmp_path,
+        get_json=lambda url, timeout_seconds=2.0: (_ for _ in ()).throw(
+            HelperError("unreachable")
+        ),
+        popen=popen,
+        which=lambda command: f"/bin/{command}",
+    )
+
+    response = manager.handle_message(
+        {"type": "ensure_ready", "service_url": "http://127.0.0.1:8000"}
+    )
+
+    assert response == {"ok": False, "error": "Could not write helper state."}
+    assert len(popen.calls) == 1
+    assert popen.calls[0]["process"].terminated is True
 
 
 def test_validate_idle_timeout_uses_default_and_accepts_non_negative_integer() -> None:
