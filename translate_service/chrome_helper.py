@@ -151,7 +151,7 @@ class HelperManager:
     def ensure_ready(self, message: dict[str, object]) -> dict[str, object]:
         service_url = normalize_service_url(message.get("service_url", DEFAULT_SERVICE_URL))
         idle_timeout_seconds = validate_idle_timeout(message.get("idle_timeout_seconds"))
-        stop_policy = validate_stop_policy(message.get("stop_policy"))
+        stop_policy = validate_stop_policy(message.get("stop_ollama_policy"))
         startup_processes: list[Any] = []
         try:
             ollama_started, ollama_process = self.ensure_ollama()

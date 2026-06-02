@@ -145,7 +145,7 @@ def test_ensure_ready_starts_local_processes_when_checks_are_unreachable(
             "type": "ensure_ready",
             "service_url": "http://127.0.0.1:8000",
             "idle_timeout_seconds": 123,
-            "stop_policy": "always",
+            "stop_ollama_policy": "always",
         }
     )
 
