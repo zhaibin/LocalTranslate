@@ -77,11 +77,19 @@ function sendNativeMessage(message) {
   });
 }
 
+function idleTimeoutSeconds(settings) {
+  const configuredMinutes = settings.idleTimeoutMinutes ?? DEFAULT_IDLE_TIMEOUT_MINUTES;
+  const idleTimeoutMinutes =
+    configuredMinutes === "" ? DEFAULT_IDLE_TIMEOUT_MINUTES : configuredMinutes;
+
+  return Math.max(0, Number(idleTimeoutMinutes)) * 60;
+}
+
 async function ensureReadyWithHelper(settings) {
   return sendNativeMessage({
     type: "ensure_ready",
     service_url: settings.serviceUrl,
-    idle_timeout_seconds: Math.max(0, Number(settings.idleTimeoutMinutes || 15)) * 60,
+    idle_timeout_seconds: idleTimeoutSeconds(settings),
     stop_ollama_policy: settings.stopOllamaPolicy || DEFAULT_STOP_OLLAMA_POLICY,
   });
 }

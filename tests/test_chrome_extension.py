@@ -123,3 +123,10 @@ def test_background_retries_fetch_through_native_helper():
     assert "ensure_ready" in background
     assert "retryAfterHelper" in background
     assert "Local service is not running and the Chrome helper is not installed." in background
+
+
+def test_background_preserves_zero_idle_timeout_for_native_helper():
+    background = (EXTENSION_DIR / "background.js").read_text(encoding="utf-8")
+
+    assert "settings.idleTimeoutMinutes || 15" not in background
+    assert "settings.idleTimeoutMinutes ?? DEFAULT_IDLE_TIMEOUT_MINUTES" in background
