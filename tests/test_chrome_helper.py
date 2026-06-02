@@ -243,6 +243,41 @@ def test_helper_writes_state_file_when_it_starts_processes(tmp_path: Path) -> No
     assert "started_at" in state
 
 
+def test_write_state_rejects_corrupt_utf8_state_with_bounded_error(
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "state.json"
+    state_path.write_bytes(b"\xff")
+    manager = HelperManager(project_root=ROOT, state_path=state_path, log_dir=tmp_path)
+
+    with pytest.raises(HelperError, match="^Could not write helper state\\.$"):
+        manager.write_state({"ollama_pid": 123})
+
+
+def test_write_state_wraps_write_failure_with_bounded_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manager = HelperManager(
+        project_root=ROOT,
+        state_path=tmp_path / "state.json",
+        log_dir=tmp_path,
+    )
+
+    def fail_write_text(
+        self: Path,
+        data: str,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> int:
+        raise OSError("raw path and system details")
+
+    monkeypatch.setattr(Path, "write_text", fail_write_text)
+
+    with pytest.raises(HelperError, match="^Could not write helper state\\.$"):
+        manager.write_state({"ollama_pid": 123})
+
+
 def test_validate_idle_timeout_uses_default_and_accepts_non_negative_integer() -> None:
     assert validate_idle_timeout(None) == 900
     assert validate_idle_timeout(0) == 0

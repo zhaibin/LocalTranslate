@@ -25,6 +25,7 @@ DEFAULT_STATE_PATH = (
 )
 DEFAULT_LOG_DIR = Path.home() / "Library" / "Logs" / "translate-service"
 OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
+STATE_ERROR = "Could not write helper state."
 
 
 class HelperError(Exception):
@@ -268,17 +269,22 @@ class HelperManager:
         state: dict[str, object] = {}
         try:
             existing = json.loads(self.state_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except FileNotFoundError:
             existing = None
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise HelperError(STATE_ERROR) from exc
         if isinstance(existing, dict):
             state.update(existing)
 
         state.update({key: value for key, value in updates.items() if value is not None})
-        self.state_path.parent.mkdir(parents=True, exist_ok=True)
-        self.state_path.write_text(
-            json.dumps(state, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-        )
+        try:
+            self.state_path.parent.mkdir(parents=True, exist_ok=True)
+            self.state_path.write_text(
+                json.dumps(state, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            raise HelperError(STATE_ERROR) from exc
 
 
 def default_project_root() -> Path:
