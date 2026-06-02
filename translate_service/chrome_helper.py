@@ -195,6 +195,7 @@ class HelperManager:
             with log_path.open("ab") as log_file:
                 process = self.popen(
                     [ollama_bin, "serve"],
+                    stdin=subprocess.DEVNULL,
                     stdout=log_file,
                     stderr=subprocess.STDOUT,
                     start_new_session=True,
@@ -253,6 +254,7 @@ class HelperManager:
                 process = self.popen(
                     args,
                     cwd=self.project_root,
+                    stdin=subprocess.DEVNULL,
                     stdout=log_file,
                     stderr=subprocess.STDOUT,
                     start_new_session=True,

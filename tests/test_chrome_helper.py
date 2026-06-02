@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import struct
+import subprocess
 import tomllib
 from pathlib import Path
 
@@ -162,6 +163,7 @@ def test_ensure_ready_starts_local_processes_when_checks_are_unreachable(
         "http://127.0.0.1:8000/health",
     ]
     assert popen.calls[0]["args"] == ["/bin/ollama", "serve"]
+    assert popen.calls[0]["kwargs"]["stdin"] == subprocess.DEVNULL
     assert popen.calls[1]["args"] == [
         str(ROOT / ".venv" / "bin" / "translate"),
         "serve",
@@ -174,6 +176,7 @@ def test_ensure_ready_starts_local_processes_when_checks_are_unreachable(
         "--stop-ollama-policy",
         "always",
     ]
+    assert popen.calls[1]["kwargs"]["stdin"] == subprocess.DEVNULL
 
 
 def test_ensure_ready_returns_ready_without_starting_when_services_are_reachable(
