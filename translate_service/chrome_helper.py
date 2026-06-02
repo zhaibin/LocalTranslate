@@ -26,6 +26,11 @@ DEFAULT_STATE_PATH = (
 DEFAULT_LOG_DIR = Path.home() / "Library" / "Logs" / "translate-service"
 OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
 STATE_ERROR = "Could not write helper state."
+MACOS_OLLAMA_PATHS = (
+    "/opt/homebrew/bin/ollama",
+    "/usr/local/bin/ollama",
+    "/Applications/Ollama.app/Contents/Resources/ollama",
+)
 
 
 class HelperError(Exception):
@@ -114,6 +119,17 @@ def validate_stop_policy(value: object) -> str:
     return value
 
 
+def resolve_ollama_binary(which: Callable[[str], str | None]) -> str | None:
+    ollama_bin = which("ollama")
+    if ollama_bin is not None:
+        return ollama_bin
+
+    for candidate in MACOS_OLLAMA_PATHS:
+        if Path(candidate).is_file():
+            return candidate
+    return None
+
+
 def default_get_json(url: str, timeout_seconds: float = 2.0) -> dict[str, Any]:
     try:
         response = httpx.get(url, timeout=timeout_seconds)
@@ -185,9 +201,9 @@ class HelperManager:
         except HelperError:
             pass
 
-        ollama_bin = self.which("ollama")
+        ollama_bin = resolve_ollama_binary(self.which)
         if ollama_bin is None:
-            raise HelperError("Ollama is not installed or not available on PATH.")
+            raise HelperError("Ollama is not installed or not available to the helper.")
 
         log_path = self.log_dir / "ollama.log"
         try:

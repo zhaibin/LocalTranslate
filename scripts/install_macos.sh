@@ -11,6 +11,7 @@ NATIVE_HOST_DIR="$HOME/Library/Application Support/Google/Chrome/NativeMessaging
 NATIVE_HOST_PATH="$NATIVE_HOST_DIR/$NATIVE_HOST_NAME.json"
 INSTALL_OLLAMA=0
 PULL_MODEL=1
+PULL_MODEL_EXPLICIT=0
 HOST="127.0.0.1"
 PORT="8000"
 MODEL="translategemma:latest"
@@ -58,8 +59,8 @@ while [ "$#" -gt 0 ]; do
     --install-chrome-helper) INSTALL_CHROME_HELPER=1; shift ;;
     --chrome-extension-id) CHROME_EXTENSION_ID="${2:-}"; [ -n "$CHROME_EXTENSION_ID" ] || die "--chrome-extension-id requires a value"; shift 2 ;;
     --install-ollama) INSTALL_OLLAMA=1; shift ;;
-    --pull-model) PULL_MODEL=1; shift ;;
-    --no-pull-model) PULL_MODEL=0; shift ;;
+    --pull-model) PULL_MODEL=1; PULL_MODEL_EXPLICIT=1; shift ;;
+    --no-pull-model) PULL_MODEL=0; PULL_MODEL_EXPLICIT=1; shift ;;
     --host) HOST="${2:-}"; [ -n "$HOST" ] || die "--host requires a value"; shift 2 ;;
     --port) PORT="${2:-}"; [ -n "$PORT" ] || die "--port requires a value"; shift 2 ;;
     --model) MODEL="${2:-}"; [ -n "$MODEL" ] || die "--model requires a value"; shift 2 ;;
@@ -179,29 +180,39 @@ PY
 done
 [ -n "$PYTHON_BIN" ] || die "Python 3.11+ is required."
 
-log "[2/7] Checking Ollama"
-if ! command -v ollama >/dev/null 2>&1; then
-  if [ "$INSTALL_OLLAMA" -eq 1 ]; then
-    command -v brew >/dev/null 2>&1 || die "Homebrew is required for --install-ollama. Install Homebrew or Ollama manually."
-    brew install ollama
-    if [ "$OLLAMA_BASE_URL" = "$DEFAULT_OLLAMA_BASE_URL" ]; then
-      start_local_ollama
+PREPARE_OLLAMA=1
+if [ "$INSTALL_CHROME_HELPER" -eq 1 ] && [ "$INSTALL_SERVICE" -eq 0 ] && [ "$INSTALL_OLLAMA" -eq 0 ] && [ "$PULL_MODEL_EXPLICIT" -eq 0 ]; then
+  PREPARE_OLLAMA=0
+  PULL_MODEL=0
+fi
+
+if [ "$PREPARE_OLLAMA" -eq 1 ]; then
+  log "[2/7] Checking Ollama"
+  if ! command -v ollama >/dev/null 2>&1; then
+    if [ "$INSTALL_OLLAMA" -eq 1 ]; then
+      command -v brew >/dev/null 2>&1 || die "Homebrew is required for --install-ollama. Install Homebrew or Ollama manually."
+      brew install ollama
+      if [ "$OLLAMA_BASE_URL" = "$DEFAULT_OLLAMA_BASE_URL" ]; then
+        start_local_ollama
+      fi
+    else
+      die "Ollama is not installed. Install it manually or rerun with --install-ollama."
+    fi
+  fi
+  if command -v curl >/dev/null 2>&1; then
+    if ! wait_for_ollama; then
+      if [ "$INSTALL_OLLAMA" -eq 1 ] && [ "$OLLAMA_BASE_URL" = "$DEFAULT_OLLAMA_BASE_URL" ]; then
+        start_local_ollama
+        wait_for_ollama || die "Ollama HTTP API is not reachable at $OLLAMA_BASE_URL. Installed Ollama is not ready. Please start Ollama first, or run 'ollama serve', and rerun the installer."
+      else
+        die "Ollama HTTP API is not reachable at $OLLAMA_BASE_URL. Installed Ollama is not ready. Please start Ollama first, or run 'ollama serve', and rerun the installer."
+      fi
     fi
   else
-    die "Ollama is not installed. Install it manually or rerun with --install-ollama."
-  fi
-fi
-if command -v curl >/dev/null 2>&1; then
-  if ! wait_for_ollama; then
-    if [ "$INSTALL_OLLAMA" -eq 1 ] && [ "$OLLAMA_BASE_URL" = "$DEFAULT_OLLAMA_BASE_URL" ]; then
-      start_local_ollama
-      wait_for_ollama || die "Ollama HTTP API is not reachable at $OLLAMA_BASE_URL. Installed Ollama is not ready. Please start Ollama first, or run 'ollama serve', and rerun the installer."
-    else
-      die "Ollama HTTP API is not reachable at $OLLAMA_BASE_URL. Installed Ollama is not ready. Please start Ollama first, or run 'ollama serve', and rerun the installer."
-    fi
+    log "curl is not available; skipping Ollama HTTP API readiness check."
   fi
 else
-  log "curl is not available; skipping Ollama HTTP API readiness check."
+  log "[2/7] Skipping Ollama preparation for Chrome helper registration"
 fi
 
 log "[3/7] Creating virtual environment"

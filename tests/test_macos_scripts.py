@@ -128,6 +128,18 @@ def test_install_script_checks_ollama_http_api_before_model_pull():
     assert script.index(readiness_check) < script.index(model_pull)
 
 
+def test_install_script_skips_ollama_preparation_for_helper_only_registration():
+    script = read_script(INSTALL_SCRIPT)
+
+    assert "PREPARE_OLLAMA=1" in script
+    assert '[ "$INSTALL_CHROME_HELPER" -eq 1 ]' in script
+    assert '[ "$INSTALL_SERVICE" -eq 0 ]' in script
+    assert '[ "$INSTALL_OLLAMA" -eq 0 ]' in script
+    assert '[ "$PULL_MODEL_EXPLICIT" -eq 0 ]' in script
+    assert "PREPARE_OLLAMA=0" in script
+    assert "Skipping Ollama preparation for Chrome helper registration" in script
+
+
 def test_install_script_polls_readiness_and_starts_fresh_local_ollama():
     script = read_script(INSTALL_SCRIPT)
 

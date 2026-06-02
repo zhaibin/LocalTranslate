@@ -16,6 +16,7 @@ from translate_service.chrome_helper import (
     main,
     normalize_service_url,
     read_message,
+    resolve_ollama_binary,
     validate_idle_timeout,
     validate_stop_policy,
     write_message,
@@ -117,6 +118,21 @@ def test_helper_manager_unknown_message_returns_error(tmp_path: Path) -> None:
 
     assert response["ok"] is False
     assert "Unsupported helper message" in str(response["error"])
+
+
+def test_resolve_ollama_binary_checks_common_macos_paths_when_path_is_sparse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_is_file(path: Path) -> bool:
+        return str(path) == "/opt/homebrew/bin/ollama"
+
+    monkeypatch.setattr(Path, "is_file", fake_is_file)
+
+    assert resolve_ollama_binary(lambda command: None) == "/opt/homebrew/bin/ollama"
+
+
+def test_resolve_ollama_binary_prefers_path_lookup() -> None:
+    assert resolve_ollama_binary(lambda command: "/custom/bin/ollama") == "/custom/bin/ollama"
 
 
 def test_ensure_ready_starts_local_processes_when_checks_are_unreachable(

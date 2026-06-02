@@ -132,6 +132,16 @@ def test_background_preserves_zero_idle_timeout_for_native_helper():
     assert "settings.idleTimeoutMinutes ?? DEFAULT_IDLE_TIMEOUT_MINUTES" in background
 
 
+def test_extension_service_url_validation_matches_helper_restrictions():
+    background = (EXTENSION_DIR / "background.js").read_text(encoding="utf-8")
+    options = (EXTENSION_DIR / "options.js").read_text(encoding="utf-8")
+
+    for source in [background, options]:
+        assert "Service URL must not include credentials." in source
+        assert "Service URL must not include a path." in source
+        assert "Service URL must not include query or fragment." in source
+
+
 def test_options_exposes_helper_lifecycle_controls():
     html = (EXTENSION_DIR / "options.html").read_text(encoding="utf-8")
     js = (EXTENSION_DIR / "options.js").read_text(encoding="utf-8")

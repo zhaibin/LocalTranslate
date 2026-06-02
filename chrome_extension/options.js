@@ -50,6 +50,18 @@ function validateServiceUrl(value) {
     throw new Error("Service URL must point to 127.0.0.1 or localhost.");
   }
 
+  if (url.username || url.password) {
+    throw new Error("Service URL must not include credentials.");
+  }
+
+  if (url.pathname && url.pathname !== "/") {
+    throw new Error("Service URL must not include a path.");
+  }
+
+  if (url.search || url.hash) {
+    throw new Error("Service URL must not include query or fragment.");
+  }
+
   return url.toString().replace(/\/+$/, "");
 }
 
