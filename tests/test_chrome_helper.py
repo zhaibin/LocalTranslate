@@ -319,6 +319,54 @@ def test_ensure_ollama_terminates_started_process_when_state_write_fails(
     assert popen.calls[0]["process"].terminated is True
 
 
+def test_ensure_ready_terminates_ollama_when_later_translate_state_write_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    popen = FakePopen()
+    original_write_text = Path.write_text
+    write_count = 0
+
+    def fail_second_write_text(
+        self: Path,
+        data: str,
+        encoding: str | None = None,
+        errors: str | None = None,
+        newline: str | None = None,
+    ) -> int:
+        nonlocal write_count
+        write_count += 1
+        if write_count == 2:
+            raise OSError("raw path and system details")
+        return original_write_text(
+            self,
+            data,
+            encoding=encoding,
+            errors=errors,
+            newline=newline,
+        )
+
+    monkeypatch.setattr(Path, "write_text", fail_second_write_text)
+    manager = HelperManager(
+        project_root=ROOT,
+        state_path=tmp_path / "state.json",
+        log_dir=tmp_path,
+        get_json=lambda url, timeout_seconds=2.0: (_ for _ in ()).throw(
+            HelperError("unreachable")
+        ),
+        popen=popen,
+        which=lambda command: f"/bin/{command}",
+    )
+
+    response = manager.handle_message(
+        {"type": "ensure_ready", "service_url": "http://127.0.0.1:8000"}
+    )
+
+    assert response == {"ok": False, "error": "Could not write helper state."}
+    assert len(popen.calls) == 2
+    assert popen.calls[0]["process"].terminated is True
+    assert popen.calls[1]["process"].terminated is True
+
+
 def test_validate_idle_timeout_uses_default_and_accepts_non_negative_integer() -> None:
     assert validate_idle_timeout(None) == 900
     assert validate_idle_timeout(0) == 0

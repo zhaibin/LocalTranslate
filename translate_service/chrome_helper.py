@@ -152,14 +152,24 @@ class HelperManager:
         service_url = normalize_service_url(message.get("service_url", DEFAULT_SERVICE_URL))
         idle_timeout_seconds = validate_idle_timeout(message.get("idle_timeout_seconds"))
         stop_policy = validate_stop_policy(message.get("stop_policy"))
-        ollama_started = self.ensure_ollama()
-        translate_started = self.ensure_translate_service(
-            service_url=service_url,
-            idle_timeout_seconds=idle_timeout_seconds,
-            stop_policy=stop_policy,
-            ollama_started_by_helper=ollama_started,
-        )
-        self.wait_for_health(service_url)
+        startup_processes: list[Any] = []
+        try:
+            ollama_started, ollama_process = self.ensure_ollama()
+            if ollama_process is not None:
+                startup_processes.append(ollama_process)
+            translate_started, translate_process = self.ensure_translate_service(
+                service_url=service_url,
+                idle_timeout_seconds=idle_timeout_seconds,
+                stop_policy=stop_policy,
+                ollama_started_by_helper=ollama_started,
+            )
+            if translate_process is not None:
+                startup_processes.append(translate_process)
+            self.wait_for_health(service_url)
+        except HelperError:
+            for process in reversed(startup_processes):
+                self.terminate_process(process)
+            raise
         return {
             "ok": True,
             "type": "ready",
@@ -168,10 +178,10 @@ class HelperManager:
             "translate_started": translate_started,
         }
 
-    def ensure_ollama(self) -> bool:
+    def ensure_ollama(self) -> tuple[bool, Any | None]:
         try:
             self.get_json(OLLAMA_TAGS_URL, 2.0)
-            return False
+            return False, None
         except HelperError:
             pass
 
@@ -201,7 +211,7 @@ class HelperManager:
         except HelperError:
             self.terminate_process(process)
             raise
-        return True
+        return True, process
 
     def ensure_translate_service(
         self,
@@ -210,11 +220,11 @@ class HelperManager:
         idle_timeout_seconds: int,
         stop_policy: str,
         ollama_started_by_helper: bool,
-    ) -> bool:
+    ) -> tuple[bool, Any | None]:
         health_url = f"{service_url}/health"
         try:
             self.get_json(health_url, 2.0)
-            return False
+            return False, None
         except HelperError:
             pass
 
@@ -261,7 +271,7 @@ class HelperManager:
         except HelperError:
             self.terminate_process(process)
             raise
-        return True
+        return True, process
 
     def terminate_process(self, process: Any) -> None:
         try:
