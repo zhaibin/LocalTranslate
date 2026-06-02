@@ -29,6 +29,7 @@ dev = [
 
 [project.scripts]
 translate = "translate_service.cli:app"
+local-translate-chrome-helper = "translate_service.chrome_helper:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
