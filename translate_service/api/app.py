@@ -61,9 +61,12 @@ def create_app(
     app.state.helper_state_path = helper_state_path
     app.state.stop_pid = stop_pid
     app.state.last_activity_at = time.monotonic()
+    app.state.active_requests = 0
 
     def should_stop_for_idle_timeout() -> bool:
         if app.state.idle_timeout_seconds <= 0:
+            return False
+        if app.state.active_requests > 0:
             return False
         idle_for = time.monotonic() - app.state.last_activity_at
         return idle_for >= app.state.idle_timeout_seconds
@@ -92,7 +95,10 @@ def create_app(
             and has_integer_pid
         )
         if should_stop and has_integer_pid:
-            app.state.stop_pid(pid)
+            try:
+                app.state.stop_pid(pid)
+            except OSError:
+                pass
 
         try:
             state_path.unlink(missing_ok=True)
@@ -104,8 +110,13 @@ def create_app(
 
     @app.middleware("http")
     async def track_activity(request: Request, call_next):
+        app.state.active_requests += 1
         app.state.last_activity_at = time.monotonic()
-        return await call_next(request)
+        try:
+            return await call_next(request)
+        finally:
+            app.state.active_requests -= 1
+            app.state.last_activity_at = time.monotonic()
 
     async def idle_monitor():
         while True:
