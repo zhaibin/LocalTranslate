@@ -15,10 +15,28 @@ from translate_service.chrome_helper import (
     main,
     normalize_service_url,
     read_message,
+    validate_idle_timeout,
+    validate_stop_policy,
     write_message,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
+
+
+class FakeProcess:
+    def __init__(self, pid: int) -> None:
+        self.pid = pid
+
+
+class FakePopen:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, object]] = []
+        self.next_pid = 3000
+
+    def __call__(self, args: list[str], **kwargs: object) -> FakeProcess:
+        self.next_pid += 1
+        self.calls.append({"args": args, "kwargs": kwargs})
+        return FakeProcess(self.next_pid)
 
 
 def test_native_messaging_frame_read_write_uses_little_endian_length() -> None:
@@ -92,6 +110,167 @@ def test_helper_manager_unknown_message_returns_error(tmp_path: Path) -> None:
 
     assert response["ok"] is False
     assert "Unsupported helper message" in str(response["error"])
+
+
+def test_ensure_ready_starts_local_processes_when_checks_are_unreachable(
+    tmp_path: Path,
+) -> None:
+    checks: list[str] = []
+    popen = FakePopen()
+
+    def fake_get_json(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+        checks.append(url)
+        if len(checks) < 3:
+            raise HelperError("unreachable")
+        return {"status": "ok"}
+
+    manager = HelperManager(
+        project_root=ROOT,
+        state_path=tmp_path / "state.json",
+        log_dir=tmp_path,
+        get_json=fake_get_json,
+        popen=popen,
+        which=lambda command: f"/bin/{command}",
+        sleep=lambda seconds: None,
+    )
+
+    response = manager.ensure_ready(
+        {
+            "type": "ensure_ready",
+            "service_url": "http://127.0.0.1:8000",
+            "idle_timeout_seconds": 123,
+            "stop_policy": "always",
+        }
+    )
+
+    assert response == {
+        "ok": True,
+        "type": "ready",
+        "service_url": "http://127.0.0.1:8000",
+        "ollama_started": True,
+        "translate_started": True,
+    }
+    assert checks == [
+        "http://127.0.0.1:11434/api/tags",
+        "http://127.0.0.1:8000/health",
+        "http://127.0.0.1:8000/health",
+    ]
+    assert popen.calls[0]["args"] == ["/bin/ollama", "serve"]
+    assert popen.calls[1]["args"] == [
+        str(ROOT / ".venv" / "bin" / "translate"),
+        "serve",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000",
+        "--idle-timeout-seconds",
+        "123",
+        "--stop-ollama-policy",
+        "always",
+    ]
+
+
+def test_ensure_ready_returns_ready_without_starting_when_services_are_reachable(
+    tmp_path: Path,
+) -> None:
+    checks: list[str] = []
+    popen = FakePopen()
+
+    def fake_get_json(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+        checks.append(url)
+        return {"ok": True}
+
+    manager = HelperManager(
+        project_root=ROOT,
+        state_path=tmp_path / "state.json",
+        log_dir=tmp_path,
+        get_json=fake_get_json,
+        popen=popen,
+        which=lambda command: f"/bin/{command}",
+        sleep=lambda seconds: None,
+    )
+
+    response = manager.ensure_ready(
+        {"type": "ensure_ready", "service_url": "http://localhost:8123/"}
+    )
+
+    assert response == {
+        "ok": True,
+        "type": "ready",
+        "service_url": "http://localhost:8123",
+        "ollama_started": False,
+        "translate_started": False,
+    }
+    assert checks == [
+        "http://127.0.0.1:11434/api/tags",
+        "http://localhost:8123/health",
+        "http://localhost:8123/health",
+    ]
+    assert popen.calls == []
+
+
+def test_helper_writes_state_file_when_it_starts_processes(tmp_path: Path) -> None:
+    popen = FakePopen()
+    calls = 0
+
+    def fake_get_json(url: str, timeout_seconds: float = 2.0) -> dict[str, object]:
+        nonlocal calls
+        calls += 1
+        if calls < 3:
+            raise HelperError("unreachable")
+        return {"status": "ok"}
+
+    state_path = tmp_path / "state.json"
+    state_path.write_text(json.dumps({"preserved": True}), encoding="utf-8")
+    manager = HelperManager(
+        project_root=ROOT,
+        state_path=state_path,
+        log_dir=tmp_path,
+        get_json=fake_get_json,
+        popen=popen,
+        which=lambda command: f"/bin/{command}",
+        sleep=lambda seconds: None,
+    )
+
+    manager.ensure_ready({"type": "ensure_ready", "service_url": "http://127.0.0.1:8000"})
+
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    assert state["preserved"] is True
+    assert state["ollama_pid"] == 3001
+    assert state["translate_pid"] == 3002
+    assert state["ollama_started_by_helper"] is True
+    assert state["service_url"] == "http://127.0.0.1:8000"
+    assert "started_at" in state
+
+
+def test_validate_idle_timeout_uses_default_and_accepts_non_negative_integer() -> None:
+    assert validate_idle_timeout(None) == 900
+    assert validate_idle_timeout(0) == 0
+    assert validate_idle_timeout(15) == 15
+
+
+@pytest.mark.parametrize("value", [-1, "10", 1.5, True])
+def test_validate_idle_timeout_rejects_negative_or_non_integer(value: object) -> None:
+    with pytest.raises(HelperError):
+        validate_idle_timeout(value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["never", "if-started-by-helper", "always"],
+)
+def test_validate_stop_policy_accepts_supported_values(value: str) -> None:
+    assert validate_stop_policy(value) == value
+
+
+def test_validate_stop_policy_uses_default() -> None:
+    assert validate_stop_policy(None) == "if-started-by-helper"
+
+
+@pytest.mark.parametrize("value", ["", "sometimes", 123, True])
+def test_validate_stop_policy_rejects_invalid_values(value: object) -> None:
+    with pytest.raises(HelperError):
+        validate_stop_policy(value)
 
 
 def test_main_returns_framed_error_for_malformed_native_input() -> None:

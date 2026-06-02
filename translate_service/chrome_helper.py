@@ -1,20 +1,30 @@
 from __future__ import annotations
 
 import json
+import shutil
 import struct
+import subprocess
 import sys
+import time
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import BinaryIO
+from typing import Any, BinaryIO, Callable
 from urllib.parse import urlparse
+
+import httpx
 
 MAX_MESSAGE_BYTES = 64 * 1024
 HELPER_NAME = "com.local.translate.helper"
 DEFAULT_SERVICE_URL = "http://127.0.0.1:8000"
+DEFAULT_IDLE_TIMEOUT_SECONDS = 900
+DEFAULT_STOP_POLICY = "if-started-by-helper"
+STOP_POLICIES = {"never", "if-started-by-helper", "always"}
 DEFAULT_STATE_PATH = (
     Path.home() / "Library" / "Application Support" / "LocalTranslate" / "helper-state.json"
 )
 DEFAULT_LOG_DIR = Path.home() / "Library" / "Logs" / "translate-service"
+OLLAMA_TAGS_URL = "http://127.0.0.1:11434/api/tags"
 
 
 class HelperError(Exception):
@@ -83,11 +93,46 @@ def normalize_service_url(value: object) -> str:
     return f"http://{parsed.hostname}:{port}"
 
 
+def validate_idle_timeout(value: object) -> int:
+    if value is None:
+        return DEFAULT_IDLE_TIMEOUT_SECONDS
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise HelperError("idle_timeout_seconds must be a non-negative integer")
+    if value < 0:
+        raise HelperError("idle_timeout_seconds must be a non-negative integer")
+    return value
+
+
+def validate_stop_policy(value: object) -> str:
+    if value is None:
+        return DEFAULT_STOP_POLICY
+    if not isinstance(value, str) or value not in STOP_POLICIES:
+        raise HelperError("stop_policy must be a supported value")
+    return value
+
+
+def default_get_json(url: str, timeout_seconds: float = 2.0) -> dict[str, Any]:
+    try:
+        response = httpx.get(url, timeout=timeout_seconds)
+        response.raise_for_status()
+        payload = response.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HelperError("HTTP readiness check failed.") from exc
+    if not isinstance(payload, dict):
+        raise HelperError("HTTP readiness check returned invalid JSON.")
+    return payload
+
+
 @dataclass
 class HelperManager:
     project_root: Path
     state_path: Path = DEFAULT_STATE_PATH
     log_dir: Path = DEFAULT_LOG_DIR
+    get_json: Callable[[str, float], dict[str, Any]] = default_get_json
+    popen: Callable[..., Any] = subprocess.Popen
+    which: Callable[[str], str | None] = shutil.which
+    sleep: Callable[[float], None] = time.sleep
+    ready_timeout_seconds: float = 30.0
 
     def handle_message(self, message: dict[str, object]) -> dict[str, object]:
         try:
@@ -102,13 +147,138 @@ class HelperManager:
 
     def ensure_ready(self, message: dict[str, object]) -> dict[str, object]:
         service_url = normalize_service_url(message.get("service_url", DEFAULT_SERVICE_URL))
+        idle_timeout_seconds = validate_idle_timeout(message.get("idle_timeout_seconds"))
+        stop_policy = validate_stop_policy(message.get("stop_policy"))
+        ollama_started = self.ensure_ollama()
+        translate_started = self.ensure_translate_service(
+            service_url=service_url,
+            idle_timeout_seconds=idle_timeout_seconds,
+            stop_policy=stop_policy,
+            ollama_started_by_helper=ollama_started,
+        )
+        self.wait_for_health(service_url)
         return {
             "ok": True,
             "type": "ready",
             "service_url": service_url,
-            "ollama_started": False,
-            "translate_started": False,
+            "ollama_started": ollama_started,
+            "translate_started": translate_started,
         }
+
+    def ensure_ollama(self) -> bool:
+        try:
+            self.get_json(OLLAMA_TAGS_URL, 2.0)
+            return False
+        except HelperError:
+            pass
+
+        ollama_bin = self.which("ollama")
+        if ollama_bin is None:
+            raise HelperError("Ollama is not installed or not available on PATH.")
+
+        log_path = self.log_dir / "ollama.log"
+        try:
+            self.log_dir.mkdir(parents=True, exist_ok=True)
+            with log_path.open("ab") as log_file:
+                process = self.popen(
+                    [ollama_bin, "serve"],
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
+        except OSError as exc:
+            raise HelperError("Could not start Ollama.") from exc
+        self.write_state(
+            {
+                "ollama_pid": getattr(process, "pid", None),
+                "ollama_started_by_helper": True,
+            }
+        )
+        return True
+
+    def ensure_translate_service(
+        self,
+        *,
+        service_url: str,
+        idle_timeout_seconds: int,
+        stop_policy: str,
+        ollama_started_by_helper: bool,
+    ) -> bool:
+        health_url = f"{service_url}/health"
+        try:
+            self.get_json(health_url, 2.0)
+            return False
+        except HelperError:
+            pass
+
+        parsed = urlparse(service_url)
+        if parsed.hostname is None or parsed.port is None:
+            raise HelperError("Service URL is invalid.")
+
+        translate_bin = self.project_root / ".venv" / "bin" / "translate"
+        args = [
+            str(translate_bin),
+            "serve",
+            "--host",
+            parsed.hostname,
+            "--port",
+            str(parsed.port),
+            "--idle-timeout-seconds",
+            str(idle_timeout_seconds),
+            "--stop-ollama-policy",
+            stop_policy,
+        ]
+
+        log_path = self.log_dir / "translate-service.log"
+        try:
+            self.log_dir.mkdir(parents=True, exist_ok=True)
+            with log_path.open("ab") as log_file:
+                process = self.popen(
+                    args,
+                    cwd=self.project_root,
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                )
+        except OSError as exc:
+            raise HelperError("Could not start translate service.") from exc
+        self.write_state(
+            {
+                "translate_pid": getattr(process, "pid", None),
+                "ollama_started_by_helper": ollama_started_by_helper,
+                "service_url": service_url,
+                "started_at": datetime.now(UTC).isoformat(),
+            }
+        )
+        return True
+
+    def wait_for_health(self, service_url: str) -> None:
+        health_url = f"{service_url}/health"
+        deadline = time.monotonic() + self.ready_timeout_seconds
+        while True:
+            try:
+                self.get_json(health_url, 2.0)
+                return
+            except HelperError as exc:
+                if time.monotonic() >= deadline:
+                    raise HelperError("Translate service did not become ready.") from exc
+                self.sleep(1.0)
+
+    def write_state(self, updates: dict[str, object | None]) -> None:
+        state: dict[str, object] = {}
+        try:
+            existing = json.loads(self.state_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            existing = None
+        if isinstance(existing, dict):
+            state.update(existing)
+
+        state.update({key: value for key, value in updates.items() if value is not None})
+        self.state_path.parent.mkdir(parents=True, exist_ok=True)
+        self.state_path.write_text(
+            json.dumps(state, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
 
 
 def default_project_root() -> Path:
