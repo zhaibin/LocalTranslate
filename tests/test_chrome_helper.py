@@ -106,6 +106,24 @@ def test_main_returns_framed_error_for_malformed_native_input() -> None:
     assert "Invalid native messaging JSON" in str(response["error"])
 
 
+def test_main_returns_bounded_framed_error_for_long_unsupported_type() -> None:
+    input_stream = io.BytesIO()
+    output_stream = io.BytesIO()
+    write_message(input_stream, {"type": "x" * (MAX_MESSAGE_BYTES - 20)})
+    input_stream.seek(0)
+
+    main(input_stream=input_stream, output_stream=output_stream)
+
+    raw_response = output_stream.getvalue()
+    body_length = struct.unpack("<I", raw_response[:4])[0]
+    assert body_length <= MAX_MESSAGE_BYTES
+
+    output_stream.seek(0)
+    response = read_message(output_stream)
+    assert response["ok"] is False
+    assert "Unsupported helper message" in str(response["error"])
+
+
 def test_pyproject_declares_chrome_helper_console_script() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
 

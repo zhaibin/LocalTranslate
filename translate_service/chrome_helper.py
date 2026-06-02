@@ -93,7 +93,7 @@ class HelperManager:
                 return {"ok": True, "type": "pong"}
             if message_type == "ensure_ready":
                 return self.ensure_ready(message)
-            raise HelperError(f"Unsupported helper message: {message_type!r}")
+            raise HelperError("Unsupported helper message type.")
         except HelperError as exc:
             return {"ok": False, "error": str(exc)}
 
