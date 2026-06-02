@@ -51,6 +51,12 @@ def test_manifest_permissions_cover_local_service_and_extension_apis():
     assert "http://localhost:*/*" in manifest["host_permissions"]
 
 
+def test_manifest_allows_native_messaging():
+    manifest = read_manifest()
+
+    assert "nativeMessaging" in manifest["permissions"]
+
+
 def test_expected_extension_files_exist():
     expected_files = [
         "manifest.json",
@@ -107,3 +113,13 @@ def test_background_contains_context_menu_and_fallback_storage_flow():
     assert "Local translation timed out after" in background
     assert "Try shorter text or check Ollama." in background
     assert "getErrorServiceUrl" in background
+
+
+def test_background_retries_fetch_through_native_helper():
+    background = (EXTENSION_DIR / "background.js").read_text(encoding="utf-8")
+
+    assert "chrome.runtime.sendNativeMessage" in background
+    assert "com.local.translate.helper" in background
+    assert "ensure_ready" in background
+    assert "retryAfterHelper" in background
+    assert "Local service is not running and the Chrome helper is not installed." in background

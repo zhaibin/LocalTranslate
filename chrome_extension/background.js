@@ -1,7 +1,13 @@
+const NATIVE_HELPER_NAME = "com.local.translate.helper";
+const DEFAULT_IDLE_TIMEOUT_MINUTES = 15;
+const DEFAULT_STOP_OLLAMA_POLICY = "if-started-by-helper";
+
 const DEFAULT_SETTINGS = {
   serviceUrl: "http://127.0.0.1:8000",
   sourceLang: "en",
   targetLang: "zh",
+  idleTimeoutMinutes: DEFAULT_IDLE_TIMEOUT_MINUTES,
+  stopOllamaPolicy: DEFAULT_STOP_OLLAMA_POLICY,
 };
 
 const CONTEXT_MENU_ID = "local-translate-selection";
@@ -43,7 +49,44 @@ async function parseApiError(response) {
   }
 }
 
-async function requestJson(path, options = {}) {
+function isNetworkFailure(error) {
+  return error instanceof TypeError || /Failed to fetch|NetworkError/i.test(error?.message || "");
+}
+
+function runtimeErrorMessage() {
+  return chrome.runtime.lastError?.message || "";
+}
+
+function sendNativeMessage(message) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendNativeMessage(NATIVE_HELPER_NAME, message, (response) => {
+      const error = runtimeErrorMessage();
+
+      if (error) {
+        reject(new Error("Local service is not running and the Chrome helper is not installed."));
+        return;
+      }
+
+      if (!response || response.ok === false) {
+        reject(new Error(response?.error || "Chrome helper could not start the local service."));
+        return;
+      }
+
+      resolve(response);
+    });
+  });
+}
+
+async function ensureReadyWithHelper(settings) {
+  return sendNativeMessage({
+    type: "ensure_ready",
+    service_url: settings.serviceUrl,
+    idle_timeout_seconds: Math.max(0, Number(settings.idleTimeoutMinutes || 15)) * 60,
+    stop_ollama_policy: settings.stopOllamaPolicy || DEFAULT_STOP_OLLAMA_POLICY,
+  });
+}
+
+async function requestJson(path, options = {}, retryAfterHelper = true) {
   const settings = await getSettings();
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -70,6 +113,11 @@ async function requestJson(path, options = {}) {
       throw new Error(
         `Local translation timed out after ${REQUEST_TIMEOUT_SECONDS} seconds. Try shorter text or check Ollama.`,
       );
+    }
+
+    if (retryAfterHelper && isNetworkFailure(error)) {
+      await ensureReadyWithHelper(settings);
+      return requestJson(path, options, false);
     }
 
     throw error;
