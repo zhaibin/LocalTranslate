@@ -1,6 +1,7 @@
 import asyncio
 import json
 import sys
+from typing import Annotated
 
 import typer
 
@@ -54,9 +55,39 @@ def languages():
 
 
 @app.command()
-def serve(host: str = "127.0.0.1", port: int = 8000):
+def serve(
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    idle_timeout_seconds: Annotated[int, typer.Option("--idle-timeout-seconds")] = 0,
+    stop_ollama_policy: Annotated[str, typer.Option("--stop-ollama-policy")] = "never",
+):
     import uvicorn
 
-    from translate_service.api.app import create_app
+    from translate_service.api.app import StopOllamaPolicy, create_app
 
-    uvicorn.run(create_app(), host=host, port=port)
+    try:
+        policy = StopOllamaPolicy(stop_ollama_policy)
+    except ValueError as exc:
+        valid_values = ", ".join(policy.value for policy in StopOllamaPolicy)
+        raise typer.BadParameter(
+            f"Invalid stop Ollama policy '{stop_ollama_policy}'. Expected one of: {valid_values}."
+        ) from exc
+
+    server: uvicorn.Server | None = None
+
+    def request_shutdown() -> None:
+        if server is not None:
+            server.should_exit = True
+
+    server = uvicorn.Server(
+        uvicorn.Config(
+            create_app(
+                idle_timeout_seconds=idle_timeout_seconds,
+                stop_ollama_policy=policy,
+                on_idle_timeout=request_shutdown,
+            ),
+            host=host,
+            port=port,
+        )
+    )
+    server.run()
