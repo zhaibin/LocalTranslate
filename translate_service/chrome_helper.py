@@ -58,7 +58,10 @@ def normalize_service_url(value: object) -> str:
     if not isinstance(value, str):
         raise HelperError("service_url must be a string")
 
-    parsed = urlparse(value)
+    try:
+        parsed = urlparse(value)
+    except ValueError as exc:
+        raise HelperError("Service URL is invalid.") from exc
     if parsed.scheme != "http":
         raise HelperError("service_url must use http")
     if parsed.hostname not in {"127.0.0.1", "localhost"}:

@@ -145,6 +145,23 @@ def test_main_returns_bounded_framed_error_for_long_invalid_service_url_port() -
     assert response["error"] == "Service URL must include a valid port."
 
 
+def test_main_returns_framed_error_for_malformed_bracketed_service_url() -> None:
+    input_stream = io.BytesIO()
+    output_stream = io.BytesIO()
+    write_message(
+        input_stream,
+        {"type": "ensure_ready", "service_url": "http://[::1:8000"},
+    )
+    input_stream.seek(0)
+
+    main(input_stream=input_stream, output_stream=output_stream)
+
+    output_stream.seek(0)
+    response = read_message(output_stream)
+    assert response["ok"] is False
+    assert response["error"] == "Service URL is invalid."
+
+
 def test_pyproject_declares_chrome_helper_console_script() -> None:
     pyproject = tomllib.loads((ROOT / "pyproject.toml").read_text())
 
