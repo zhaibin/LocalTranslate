@@ -291,7 +291,7 @@ This repository includes a local Chrome extension in `chrome_extension/`. The
 extension translates selected webpage text through the local HTTP service and
 also provides a popup for manual translation.
 
-Start the local service first:
+Start the local service first, or install the macOS on-demand helper below:
 
 ```bash
 .venv/bin/translate serve
@@ -312,6 +312,25 @@ translation history.
 
 If Chrome cannot inject the page overlay, for example on a restricted browser
 page, the extension opens its fallback result page instead of failing silently.
+
+### On-Demand macOS Helper
+
+On macOS, the extension can start the local service on demand through a Chrome
+Native Messaging helper.
+
+Load the extension first, copy its Chrome extension ID, then run:
+
+```bash
+scripts/install_macos.sh --install-chrome-helper --chrome-extension-id EXTENSION_ID
+```
+
+The helper starts the translate HTTP service when the extension cannot reach
+`http://127.0.0.1:8000`. It can also start local Ollama when Ollama is installed
+but not running. The helper does not install Ollama or pull models.
+
+The helper-started HTTP service stops itself after the configured idle timeout.
+The default is 15 minutes. By default, Ollama is stopped only when the helper
+started it and recorded its PID.
 
 ## HTTP
 

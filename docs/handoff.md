@@ -171,6 +171,20 @@ Extension storage behavior:
 Chrome manual verification was completed after loading the unpacked extension
 from `chrome_extension/`.
 
+## macOS On-Demand Chrome Helper
+
+The Chrome extension can use a macOS Native Messaging helper named
+`com.local.translate.helper` to recover from local service `failed to fetch`.
+
+Install helper registration explicitly:
+
+```bash
+scripts/install_macos.sh --install-chrome-helper --chrome-extension-id EXTENSION_ID
+```
+
+The helper starts the local stack and exits after one response. Idle shutdown is
+owned by the translate HTTP service through `--idle-timeout-seconds`.
+
 ## Verification Commands
 
 Run full regression:
